@@ -1,0 +1,1695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OptiFOX — Foundry DOE Designer</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.7.0/dist/tabler-icons.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f5f4f0;
+      --bg-tertiary: #eeece6;
+      --text-primary: #1a1916;
+      --text-secondary: #6b6960;
+      --text-tertiary: #a09e96;
+      --border-light: rgba(26,25,22,0.12);
+      --border-med: rgba(26,25,22,0.22);
+      --amber: #b45309;
+      --amber-bg: #fef3c7;
+      --amber-border: #d97706;
+      --amber-text: #78350f;
+      --success: #065f46;
+      --success-bg: #d1fae5;
+      --danger: #991b1b;
+      --danger-bg: #fee2e2;
+      --warning-text: #92400e;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary: #1c1b18;
+        --bg-secondary: #242320;
+        --bg-tertiary: #2c2b27;
+        --text-primary: #f0ede6;
+        --text-secondary: #a09e96;
+        --text-tertiary: #706e66;
+        --border-light: rgba(240,237,230,0.10);
+        --border-med: rgba(240,237,230,0.20);
+        --amber: #f59e0b;
+        --amber-bg: #3d2c08;
+        --amber-border: #d97706;
+        --amber-text: #fcd34d;
+        --success: #6ee7b7;
+        --success-bg: #064e3b;
+        --danger: #fca5a5;
+        --danger-bg: #450a0a;
+        --warning-text: #fcd34d;
+      }
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    #app-wrapper {
+      max-width: 860px;
+      margin: 0 auto;
+      background: var(--bg-primary);
+      border-radius: var(--radius-lg);
+      border: 0.5px solid var(--border-light);
+      padding: 2rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+
+    input, select, button { font-family: inherit; font-size: 13px; }
+    input:focus, select:focus { outline: 2px solid var(--amber-border); outline-offset: 1px; }
+    button:active { transform: scale(0.97); }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 0.5px solid var(--border-light);
+    }
+    .brand-icon {
+      width: 64px; height: 64px;
+      background: var(--amber-bg);
+      border-radius: var(--radius-md);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--amber);
+      font-size: 20px;
+    }
+    .brand h1 { font-size: 18px; font-weight: 600; color: var(--text-primary); }
+    .brand p { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+
+    #root { min-height: 400px; }
+  </style>
+</head>
+<body>
+  <div id="app-wrapper">
+    <div class="brand">
+      <div class="brand-icon"><img src="OptiFOX.png" alt="OptiFOX Logo" style="width: 100%; height: 100%; object-fit: contain;" /></div>
+      <div>
+        <h1>OptiFOX</h1>
+        <p>Foundry DOE Designer — screening &amp; optimization</p>
+      </div>
+    </div>
+    <div id="root"></div>
+  </div>
+
+  <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script>
+  const {useState, useMemo, useRef, useEffect} = React;
+
+  // ── DOE Matrix Generation ─────────────────────────────────────────────
+
+  const PB8 = [
+    [ 1, 1, 1,-1, 1,-1,-1], [-1, 1, 1, 1,-1, 1,-1], [-1,-1, 1, 1, 1,-1, 1],
+    [ 1,-1,-1, 1, 1, 1,-1], [-1, 1,-1,-1, 1, 1, 1], [ 1,-1, 1,-1,-1, 1, 1],
+    [ 1, 1,-1, 1,-1,-1, 1], [-1,-1,-1,-1,-1,-1,-1],
+  ];
+  const PB12 = [
+    [ 1, 1,-1, 1, 1, 1,-1,-1,-1, 1,-1], [-1, 1, 1,-1, 1, 1, 1,-1,-1,-1, 1],
+    [ 1,-1, 1, 1,-1, 1, 1, 1,-1,-1,-1], [-1, 1,-1, 1, 1,-1, 1, 1, 1,-1,-1],
+    [-1,-1, 1,-1, 1, 1,-1, 1, 1, 1,-1], [-1,-1,-1, 1,-1, 1, 1,-1, 1, 1, 1],
+    [ 1,-1,-1,-1, 1,-1, 1, 1,-1, 1, 1], [ 1, 1,-1,-1,-1, 1,-1, 1, 1,-1, 1],
+    [ 1, 1, 1,-1,-1,-1, 1,-1, 1, 1,-1], [-1, 1, 1, 1,-1,-1,-1, 1,-1, 1, 1],
+    [ 1,-1, 1, 1, 1,-1,-1,-1, 1,-1, 1], [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+  ];
+
+  function ff2k(k) {
+    return Array.from({length:1<<k}, (_,i) =>
+      Array.from({length:k}, (_,j) => ((i>>(k-1-j))&1) ? 1 : -1)
+    );
+  }
+
+  function genScreening(n) {
+    if (n <= 3) return ff2k(n);
+    if (n <= 7) return PB8.map(r => r.slice(0, n));
+    if (n <= 11) return PB12.map(r => r.slice(0, n));
+    const p16 = [];
+    PB8.forEach(r => { p16.push([...r,...r]); p16.push([...r,...r.map(x=>-x)]); });
+    return p16.slice(0,16).map(r => r.slice(0, n));
+  }
+
+  function genCCD(n) {
+    const runs = [];
+    ff2k(n).forEach(r => runs.push([...r]));
+    for (let i = 0; i < n; i++) {
+      const a = Array(n).fill(0), b = Array(n).fill(0);
+      a[i] = 1; b[i] = -1;
+      runs.push(a, b);
+    }
+    for (let i = 0; i < 3; i++) runs.push(Array(n).fill(0));
+    return runs;
+  }
+
+  function genBB(n) {
+    if (n === 2) return genCCD(2);
+    if (n === 3) return [
+      [-1,-1,0],[1,-1,0],[-1,1,0],[1,1,0],
+      [-1,0,-1],[1,0,-1],[-1,0,1],[1,0,1],
+      [0,-1,-1],[0,1,-1],[0,-1,1],[0,1,1],
+      [0,0,0],[0,0,0],[0,0,0],
+    ];
+    if (n === 4) {
+      const runs = [];
+      [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]].forEach(([a,b]) => {
+        [[-1,-1],[-1,1],[1,-1],[1,1]].forEach(([va,vb]) => {
+          const r = Array(4).fill(0); r[a]=va; r[b]=vb; runs.push(r);
+        });
+      });
+      [0,1,2].forEach(() => runs.push(Array(4).fill(0)));
+      return runs;
+    }
+    return genCCD(n);
+  }
+
+  function decode(coded, low, high) {
+    return (low + high) / 2 + coded * (high - low) / 2;
+  }
+
+  function codeLabel(c) {
+    return c === 0 ? "0" : c > 0 ? "+1" : "−1";
+  }
+
+  function stepCircleStyle(i, step) {
+    const done = i < step, cur = i === step;
+    return {
+      background: done ? "var(--success-bg)" : cur ? "var(--amber-bg)" : "var(--bg-secondary)",
+      color:      done ? "var(--success)"    : cur ? "var(--amber-text)" : "var(--text-tertiary)",
+      border:     cur  ? "1.5px solid var(--amber-border)" : "0.5px solid var(--border-light)",
+    };
+  }
+
+  // ── Matrix utilities ──────────────────────────────────────────────────
+
+  function matMul(A, B) {
+    const m = A.length, p = B.length, n = B[0].length;
+    return Array.from({length: m}, (_, i) =>
+      Array.from({length: n}, (_, j) =>
+        Array.from({length: p}, (_, k) => A[i][k] * B[k][j]).reduce((a,b) => a+b, 0)
+      )
+    );
+  }
+
+  function matT(A) {
+    return Array.from({length: A[0].length}, (_, j) =>
+      Array.from({length: A.length}, (_, i) => A[i][j])
+    );
+  }
+
+  function matInv(M) {
+    const n = M.length;
+    const A = M.map((row, i) => [
+      ...row,
+      ...Array.from({length: n}, (_, j) => i === j ? 1 : 0),
+    ]);
+    for (let col = 0; col < n; col++) {
+      let maxRow = col;
+      for (let row = col + 1; row < n; row++)
+        if (Math.abs(A[row][col]) > Math.abs(A[maxRow][col])) maxRow = row;
+      [A[col], A[maxRow]] = [A[maxRow], A[col]];
+      const piv = A[col][col];
+      if (Math.abs(piv) < 1e-10) return null;
+      for (let j = 0; j < 2 * n; j++) A[col][j] /= piv;
+      for (let row = 0; row < n; row++) {
+        if (row === col) continue;
+        const f = A[row][col];
+        for (let j = 0; j < 2 * n; j++) A[row][j] -= f * A[col][j];
+      }
+    }
+    return A.map(row => row.slice(n));
+  }
+
+  // ── RSM model ─────────────────────────────────────────────────────────
+
+  function buildModelRow(x) {
+    const row = [1];
+    x.forEach(v => row.push(v));
+    x.forEach(v => row.push(v * v));
+    for (let i = 0; i < x.length; i++)
+      for (let j = i + 1; j < x.length; j++)
+        row.push(x[i] * x[j]);
+    return row;
+  }
+
+  function termLabels(factors) {
+    const labels = ['Intercept'];
+    factors.forEach(f => labels.push(f.name));
+    factors.forEach(f => labels.push(f.name + '²'));
+    for (let i = 0; i < factors.length; i++)
+      for (let j = i + 1; j < factors.length; j++)
+        labels.push(factors[i].name + '×' + factors[j].name);
+    return labels;
+  }
+
+  function fitRSM(mat, y) {
+    const X = mat.map(row => buildModelRow(row));
+    const Xt = matT(X);
+    const XtXinv = matInv(matMul(Xt, X));
+    if (!XtXinv) return null;
+    return matMul(XtXinv, matMul(Xt, y.map(v => [v]))).map(r => r[0]);
+  }
+
+  function fitRSMFull(mat, y) {
+    const X = mat.map(row => buildModelRow(row));
+    const Xt = matT(X);
+    const XtXinv = matInv(matMul(Xt, X));
+    if (!XtXinv) return null;
+    const beta = matMul(XtXinv, matMul(Xt, y.map(v => [v]))).map(r => r[0]);
+    const yHat = mat.map(row => predictRSM(beta, row));
+    const n = y.length, p = beta.length;
+    const yMean = y.reduce((a, b) => a + b, 0) / n;
+    const ssTot = y.reduce((s, v) => s + (v - yMean) ** 2, 0);
+    const ssRes = y.reduce((s, v, i) => s + (v - yHat[i]) ** 2, 0);
+    const r2    = ssTot < 1e-12 ? null : 1 - ssRes / ssTot;
+    const dfErr = n - p;
+    const mse   = dfErr > 0 ? ssRes / dfErr : null;
+    const r2adj = (mse !== null && ssTot > 1e-12) ? 1 - (ssRes / dfErr) / (ssTot / (n - 1)) : null;
+    const se    = mse !== null ? XtXinv.map((row, i) => Math.sqrt(Math.max(0, mse * row[i]))) : null;
+    const tStat = se ? beta.map((b, i) => se[i] > 1e-12 ? b / se[i] : 0) : null;
+    const residuals = y.map((v, i) => v - yHat[i]);
+    return { beta, yHat, residuals, ssTot, ssRes, r2, r2adj, dfErr, mse, se, tStat };
+  }
+
+  // Inverse normal CDF (Abramowitz & Stegun 26.2.17)
+  function normQuantile(p) {
+    if (p <= 0) return -4; if (p >= 1) return 4;
+    const t = p < 0.5 ? Math.sqrt(-2 * Math.log(p)) : Math.sqrt(-2 * Math.log(1 - p));
+    const z = t - (2.515517 + 0.802853 * t + 0.010328 * t * t) /
+                  (1 + 1.432788 * t + 0.189269 * t * t + 0.001308 * t * t * t);
+    return p < 0.5 ? -z : z;
+  }
+
+  function sigStars(t) {
+    const a = Math.abs(t);
+    return a > 4 ? '***' : a > 3 ? '**' : a > 2 ? '*' : 'ns';
+  }
+
+  function predictRSM(beta, x) {
+    return buildModelRow(x).reduce((s, v, i) => s + v * beta[i], 0);
+  }
+
+  function findOptimum(beta, k, goal) {
+    const steps = k <= 3 ? 11 : k === 4 ? 9 : 7;
+    const grid = Array.from({length: steps}, (_, i) => -1 + i * 2 / (steps - 1));
+    let bestX = null, bestY = goal === 'maximize' ? -Infinity : Infinity;
+    function search(x) {
+      if (x.length === k) {
+        const y = predictRSM(beta, x);
+        if (goal === 'maximize' ? y > bestY : y < bestY) { bestY = y; bestX = [...x]; }
+        return;
+      }
+      for (const v of grid) search([...x, v]);
+    }
+    search([]);
+    return { x: bestX, y: bestY };
+  }
+
+  function computeMainEffects(mat, y) {
+    return Array.from({length: mat[0].length}, (_, j) => {
+      const pos = [], neg = [];
+      mat.forEach((row, i) => { if (row[j] > 0) pos.push(y[i]); else if (row[j] < 0) neg.push(y[i]); });
+      const mean = arr => arr.length ? arr.reduce((a,b) => a+b, 0) / arr.length : 0;
+      return mean(pos) - mean(neg);
+    });
+  }
+
+  // ── Presets ────────────────────────────────────────────────────────────
+
+  const OBJ = { SCREEN: 'screen', OPTIMIZE: 'optimize' };
+
+  const MODEL_CATALOG = [
+    {
+      key: 'ff', obj: OBJ.SCREEN,
+      label: 'Full Factorial', sub: '2ᵏ',
+      desc: 'Tests every combination of factor levels. Resolves all main effects and 2FIs exactly — no confounding.',
+      pros: ['Exact 2FI estimates', 'No confounding', 'Simple to analyze'],
+      cons: ['Run count doubles per factor added'],
+      runs: n => 1 << n,
+      minFactors: 2, maxFactors: 6, idealMin: 2, idealMax: 4,
+    },
+    {
+      key: 'pb8', obj: OBJ.SCREEN,
+      label: 'Plackett-Burman', sub: 'PB8',
+      desc: 'Screens up to 7 factors in just 8 runs. The most efficient choice for early-stage factor reduction.',
+      pros: ['Only 8 runs', 'Strong main-effect resolution'],
+      cons: ['2FIs partially confounded with main effects'],
+      runs: () => 8,
+      minFactors: 3, maxFactors: 7, idealMin: 3, idealMax: 7,
+    },
+    {
+      key: 'pb12', obj: OBJ.SCREEN,
+      label: 'Plackett-Burman', sub: 'PB12',
+      desc: 'Screens up to 11 factors in 12 runs. The industrial standard for medium-scale screening studies.',
+      pros: ['12 runs for up to 11 factors', 'Strong main-effect resolution'],
+      cons: ['2FIs partially confounded with main effects'],
+      runs: () => 12,
+      minFactors: 5, maxFactors: 11, idealMin: 5, idealMax: 11,
+    },
+    {
+      key: 'pb16', obj: OBJ.SCREEN,
+      label: 'Plackett-Burman', sub: 'PB16',
+      desc: 'Screens up to 15 factors in 16 runs. For large-scale industrial studies with many candidates.',
+      pros: ['16 runs for up to 15 factors'],
+      cons: ['2FIs partially confounded with main effects'],
+      runs: () => 16,
+      minFactors: 9, maxFactors: 15, idealMin: 9, idealMax: 15,
+    },
+    {
+      key: 'bb', obj: OBJ.OPTIMIZE,
+      label: 'Box-Behnken', sub: 'BBD',
+      desc: 'Three-level RSM design with no corner-point runs. Efficient for process optimization with a spherical region.',
+      pros: ['No corner-point runs', 'Fewer runs than CCD', 'Spherical design region'],
+      cons: ['Requires 3 or more factors', 'Cannot predict at corners'],
+      runs: n => n <= 2 ? 11 : n === 3 ? 15 : n === 4 ? 27 : 46,
+      minFactors: 3, maxFactors: 5, idealMin: 3, idealMax: 5,
+    },
+    {
+      key: 'ccd', obj: OBJ.OPTIMIZE,
+      label: 'Central Composite', sub: 'CCD',
+      desc: 'Combines a factorial core with axial star points. Covers the full factor space including edges and corners.',
+      pros: ['Works for 2 or more factors', 'Broader factor-space coverage', 'Supports curvature estimation'],
+      cons: ['More runs than BBD for same n', 'Requires corner and axial runs'],
+      runs: n => (1 << n) + 2 * n + 3,
+      minFactors: 2, maxFactors: 5, idealMin: 2, idealMax: 4,
+    },
+  ];
+
+  const PTYPES = ["HPDC","Rheocasting","Sand Casting","Gravity Die","Squeeze Casting","Custom"];
+
+  const FLIB = {
+    HPDC: [
+      {name:"Injection speed",unit:"m/s",low:1.5,high:4.0},
+      {name:"Injection pressure",unit:"bar",low:400,high:800},
+      {name:"Die temperature",unit:"°C",low:180,high:280},
+      {name:"Melt temperature",unit:"°C",low:660,high:720},
+      {name:"Intensification pressure",unit:"bar",low:600,high:1200},
+      {name:"Cooling time",unit:"s",low:8,high:25},
+      {name:"Gate velocity",unit:"m/s",low:30,high:60},
+      {name:"Plunger speed Ph.1",unit:"m/s",low:0.1,high:0.5},
+      {name:"Vacuum level",unit:"mbar",low:50,high:300},
+      {name:"Lubricant amount",unit:"g",low:2,high:10},
+    ],
+    Rheocasting: [
+      {name:"Slurry temperature",unit:"°C",low:580,high:620},
+      {name:"Solid fraction",unit:"%",low:20,high:50},
+      {name:"Die temperature",unit:"°C",low:180,high:280},
+      {name:"Injection speed",unit:"m/s",low:0.5,high:3.0},
+      {name:"Holding time",unit:"s",low:5,high:20},
+      {name:"Stirring speed",unit:"rpm",low:300,high:700},
+      {name:"Melt temperature",unit:"°C",low:620,high:680},
+      {name:"Quench rate",unit:"°C/s",low:5,high:20},
+    ],
+    "Sand Casting": [
+      {name:"Pouring temperature",unit:"°C",low:720,high:780},
+      {name:"Mold temperature",unit:"°C",low:20,high:200},
+      {name:"Sand grain size",unit:"AFS",low:35,high:70},
+      {name:"Binder content",unit:"%",low:1.5,high:3.5},
+      {name:"Pouring time",unit:"s",low:10,high:40},
+      {name:"Riser height",unit:"mm",low:50,high:150},
+      {name:"Gating ratio",unit:"-",low:1.0,high:2.5},
+    ],
+    "Gravity Die": [
+      {name:"Pouring temperature",unit:"°C",low:680,high:740},
+      {name:"Die temperature",unit:"°C",low:200,high:350},
+      {name:"Tilt angle",unit:"°",low:0,high:90},
+      {name:"Tilt speed",unit:"°/s",low:5,high:30},
+      {name:"Coating thickness",unit:"μm",low:100,high:400},
+      {name:"Fill time",unit:"s",low:5,high:30},
+    ],
+    "Squeeze Casting": [
+      {name:"Applied pressure",unit:"MPa",low:50,high:150},
+      {name:"Die temperature",unit:"°C",low:200,high:320},
+      {name:"Melt temperature",unit:"°C",low:660,high:710},
+      {name:"Pressure duration",unit:"s",low:30,high:120},
+      {name:"Pressure delay",unit:"s",low:0,high:5},
+    ],
+    Custom: [],
+  };
+
+  const RLIB = [
+    {name:"Porosity",unit:"%",goal:"minimize"},
+    {name:"Tensile strength",unit:"MPa",goal:"maximize"},
+    {name:"Yield strength",unit:"MPa",goal:"maximize"},
+    {name:"Elongation",unit:"%",goal:"maximize"},
+    {name:"Hardness",unit:"HB",goal:"maximize"},
+    {name:"Surface roughness",unit:"Ra μm",goal:"minimize"},
+    {name:"SDAS",unit:"μm",goal:"minimize"},
+    {name:"Hot tearing",unit:"-",goal:"minimize"},
+    {name:"Shrinkage",unit:"%",goal:"minimize"},
+    {name:"Dimensional error",unit:"mm",goal:"minimize"},
+    {name:"Cycle time",unit:"s",goal:"minimize"},
+    {name:"Scrap rate",unit:"%",goal:"minimize"},
+    {name:"Impact energy",unit:"J",goal:"maximize"},
+    {name:"Fatigue life",unit:"cycles",goal:"maximize"},
+  ];
+
+  const STEPS = ["Process","Objective","Factors","Responses","Model","Design","Results"];
+
+  // ── Styles ─────────────────────────────────────────────────────────────
+
+  const C = {
+    card:  {background:"var(--bg-secondary)",border:"0.5px solid var(--border-light)",borderRadius:"var(--radius-lg)",padding:"1.25rem",marginBottom:"0.75rem"},
+    sec:   {background:"var(--bg-tertiary)",border:"0.5px solid var(--border-light)",borderRadius:"var(--radius-lg)",padding:"1rem",marginBottom:"0.75rem"},
+    btnP:  {padding:"8px 18px",borderRadius:"var(--radius-md)",border:"0.5px solid var(--amber-border)",background:"var(--amber-bg)",color:"var(--amber-text)",fontSize:"13px",fontWeight:"500",cursor:"pointer",whiteSpace:"nowrap"},
+    btnS:  {padding:"8px 18px",borderRadius:"var(--radius-md)",border:"0.5px solid var(--border-med)",background:"var(--bg-secondary)",color:"var(--text-primary)",fontSize:"13px",cursor:"pointer",whiteSpace:"nowrap"},
+    btnXs: {padding:"3px 9px",borderRadius:"var(--radius-md)",border:"0.5px solid var(--border-light)",background:"var(--bg-secondary)",color:"var(--text-secondary)",fontSize:"12px",cursor:"pointer"},
+    inp:   {padding:"8px 10px",borderRadius:"var(--radius-md)",border:"0.5px solid var(--border-med)",background:"var(--bg-primary)",color:"var(--text-primary)",fontSize:"13px",width:"100%"},
+    inpSm: {padding:"5px 7px",borderRadius:"var(--radius-md)",border:"0.5px solid var(--border-med)",background:"var(--bg-primary)",color:"var(--text-primary)",fontSize:"12px"},
+    tag:   s => ({display:"inline-block",padding:"5px 11px",margin:"3px",borderRadius:"var(--radius-md)",border:s?"1.5px solid var(--amber-border)":"0.5px solid var(--border-light)",background:s?"var(--amber-bg)":"var(--bg-secondary)",color:s?"var(--amber-text)":"var(--text-primary)",fontSize:"13px",cursor:"pointer"}),
+    lbl:   {fontSize:"12px",color:"var(--text-secondary)",marginBottom:"3px",display:"block"},
+    ttl:   {fontSize:"15px",fontWeight:"500",margin:"0 0 0.75rem",color:"var(--text-primary)"},
+  };
+
+  // ── Results tab ───────────────────────────────────────────────────────
+
+  const SLICE_PALETTE = ['#b45309','#065f46','#1d4ed8','#7c3aed','#0f766e'];
+
+  function ResultsTab({design, factors, resps, rvals, obj, pName, pType}) {
+    const e = React.createElement;
+    const chartRefs = useRef({});
+    const auxRefs = useRef({});
+    const [showCoefs, setShowCoefs] = useState({});
+    const [contourPairs, setContourPairs] = useState({});
+    const [surface3D, setSurface3D] = useState({});
+    const [profilerVals, setProfilerVals] = useState({});
+    const [pdfLoading, setPdfLoading] = useState(false);
+
+    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const plt = {
+      font: dark ? '#a09e96' : '#6b6960',
+      grid: dark ? 'rgba(240,237,230,0.08)' : 'rgba(26,25,22,0.07)',
+      pos:  dark ? '#6ee7b7' : '#16a34a',
+      neg:  dark ? '#fca5a5' : '#dc2626',
+    };
+
+    // Collect entered response values per response
+    const yData = useMemo(() =>
+      resps.map(r => ({
+        ...r,
+        vals: design.mat.map((_, ri) => {
+          const v = parseFloat(rvals[`${ri}_${r.id}`]);
+          return isNaN(v) ? null : v;
+        }),
+      }))
+    , [design, resps, rvals]);
+
+    // Fit model per response
+    const analysis = useMemo(() => {
+      const k = factors.length;
+      const minNeeded = obj === OBJ.SCREEN
+        ? k + 1
+        : 1 + 2 * k + k * (k - 1) / 2 + 1;
+
+      return yData.map(rd => {
+        const validIdx = rd.vals.reduce((acc, v, i) => v !== null ? [...acc, i] : acc, []);
+        if (validIdx.length < minNeeded)
+          return { id: rd.id, rd, insufficient: true, have: validIdx.length, need: minNeeded };
+
+        const mat = validIdx.map(i => design.mat[i]);
+        const y   = validIdx.map(i => rd.vals[i]);
+
+        if (obj === OBJ.SCREEN) {
+          return { id: rd.id, rd, type: 'screen', effects: computeMainEffects(mat, y) };
+        }
+
+        const fit = fitRSMFull(mat, y);
+        if (!fit) return { id: rd.id, rd, type: 'rsm', singular: true };
+        const opt = findOptimum(fit.beta, k, rd.goal);
+        return { id: rd.id, rd, type: 'rsm', ...fit, opt };
+      });
+    }, [yData, design, factors, obj]);
+
+    // Plot charts whenever analysis or contour selection updates
+    useEffect(() => {
+      if (typeof Plotly === 'undefined') return;
+
+      analysis.forEach(a => {
+        const div = chartRefs.current[a.id];
+        if (!div || a.insufficient || a.singular) return;
+
+        if (a.type === 'screen') {
+          const items = factors
+            .map((f, i) => ({ name: f.name, eff: a.effects[i] }))
+            .sort((x, y) => Math.abs(y.eff) - Math.abs(x.eff));
+
+          const total = items.reduce((s, it) => s + Math.abs(it.eff), 0);
+          let cum = 0;
+          const cumPct = items.map(it => { cum += Math.abs(it.eff); return total > 0 ? (cum / total) * 100 : 0; });
+
+          Plotly.newPlot(div, [
+            {
+              type: 'bar', orientation: 'h', name: '|Effect|',
+              y: items.map(s => s.name),
+              x: items.map(s => Math.abs(s.eff)),
+              marker: { color: items.map(s => s.eff >= 0 ? plt.pos : plt.neg) },
+              hovertemplate: '%{y}: %{x:.4f}<extra></extra>',
+            },
+            {
+              type: 'scatter', mode: 'lines+markers', name: 'Cumulative %',
+              y: items.map(s => s.name),
+              x: cumPct,
+              xaxis: 'x2',
+              line: { color: plt.font, width: 1.5, dash: 'dot' },
+              marker: { size: 5, color: plt.font },
+              hovertemplate: '%{y}: %{x:.1f}%<extra></extra>',
+            },
+          ], {
+            xaxis: { title: '|Main Effect|', zeroline: false, color: plt.font, gridcolor: plt.grid },
+            xaxis2: { title: 'Cumulative %', overlaying: 'x', side: 'top', range: [0, 105], color: plt.font, showgrid: false },
+            yaxis: { autorange: 'reversed', color: plt.font, gridcolor: plt.grid },
+            legend: { orientation: 'h', y: -0.25, x: 0.5, xanchor: 'center' },
+            margin: { t: 40, b: 50, l: 150, r: 30 },
+            paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+            font: { color: plt.font, size: 12 },
+            height: Math.max(200, 55 + factors.length * 34),
+            shapes: [{ type: 'line', xref: 'x2', yref: 'paper', x0: 80, y0: 0, x1: 80, y1: 1, line: { color: plt.neg, width: 1.5, dash: 'dot' } }],
+          }, { responsive: true, displayModeBar: false });
+
+          // 2-factor interaction effects bar chart
+          const interDiv = auxRefs.current[`interact_${a.id}`];
+          if (interDiv && factors.length >= 2) {
+            const pairs = [];
+            for (let i = 0; i < factors.length; i++) {
+              for (let j = i + 1; j < factors.length; j++) {
+                const pos = [], neg = [];
+                a.rd.vals.forEach((v, idx) => {
+                  if (v === null) return;
+                  const inter = design.mat[idx][i] * design.mat[idx][j];
+                  if (inter > 0) pos.push(v);
+                  else if (inter < 0) neg.push(v);
+                });
+                const mean = arr => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
+                pairs.push({ name: `${factors[i].name} × ${factors[j].name}`, eff: mean(pos) - mean(neg) });
+              }
+            }
+            pairs.sort((a, b) => Math.abs(b.eff) - Math.abs(a.eff));
+            const show = pairs.slice(0, 10);
+            Plotly.newPlot(interDiv, [{
+              type: 'bar', orientation: 'h',
+              y: show.map(p => p.name),
+              x: show.map(p => p.eff),
+              marker: { color: show.map(p => p.eff >= 0 ? plt.pos : plt.neg) },
+              hovertemplate: '%{y}: %{x:.4f}<extra></extra>',
+            }], {
+              xaxis: { title: '2FI Effect', zeroline: true, zerolinecolor: plt.grid, color: plt.font, gridcolor: plt.grid },
+              yaxis: { autorange: 'reversed', color: plt.font, gridcolor: plt.grid },
+              margin: { t: 8, b: 50, l: 175, r: 20 },
+              paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+              font: { color: plt.font, size: 12 },
+              height: Math.max(160, 40 + Math.min(show.length, 10) * 32),
+            }, { responsive: true, displayModeBar: false });
+          }
+
+        } else {
+          // Slice plot
+          const nPts = 61;
+          const xs = Array.from({length: nPts}, (_, i) => -1 + i * 2 / (nPts - 1));
+          const traces = factors.map((f, fi) => ({
+            name: f.name, type: 'scatter', mode: 'lines',
+            x: xs,
+            y: xs.map(xi => { const x = Array(factors.length).fill(0); x[fi] = xi; return predictRSM(a.beta, x); }),
+            customdata: xs.map(xi => decode(xi, f.low, f.high).toFixed(2)),
+            line: { color: SLICE_PALETTE[fi % SLICE_PALETTE.length] },
+            hovertemplate: `${f.name}: %{customdata} ${f.unit}<br>${a.rd.name}: %{y:.3f}<extra></extra>`,
+          }));
+          Plotly.newPlot(div, traces, {
+            xaxis: { title: 'Coded value (−1 = low, +1 = high)', color: plt.font, gridcolor: plt.grid, range: [-1.15, 1.15] },
+            yaxis: { title: `${a.rd.name} (${a.rd.unit})`, color: plt.font, gridcolor: plt.grid },
+            margin: { t: 8, b: 58, l: 65, r: 20 },
+            paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+            font: { color: plt.font, size: 12 },
+            legend: { orientation: 'h', y: -0.3, x: 0.5, xanchor: 'center' },
+            height: 300,
+          }, { responsive: true, displayModeBar: false });
+
+          // Contour / 3D Surface (shared div, toggled)
+          const pair = contourPairs[a.id] || [0, Math.min(1, factors.length - 1)];
+          const [fi, fj] = pair;
+          const contDiv = auxRefs.current[`contour_${a.id}`];
+          if (contDiv) {
+            if (factors.length >= 2 && fi !== fj) {
+              const nG = 35;
+              const cod = Array.from({length: nG}, (_, i) => -1 + i * 2 / (nG - 1));
+              const xDec = cod.map(v => parseFloat(decode(v, factors[fi].low, factors[fi].high).toFixed(3)));
+              const yDec = cod.map(v => parseFloat(decode(v, factors[fj].low, factors[fj].high).toFixed(3)));
+              const z = cod.map(vj => cod.map(vi => {
+                const xv = Array(factors.length).fill(0); xv[fi] = vi; xv[fj] = vj;
+                return parseFloat(predictRSM(a.beta, xv).toFixed(4));
+              }));
+              if (surface3D[a.id]) {
+                Plotly.newPlot(contDiv, [{
+                  type: 'surface', x: xDec, y: yDec, z,
+                  colorscale: 'RdYlGn', reversescale: a.rd.goal === 'minimize', showscale: true,
+                  colorbar: { title: { text: a.rd.unit, side: 'right' }, thickness: 14 },
+                }], {
+                  scene: {
+                    xaxis: { title: `${factors[fi].name} (${factors[fi].unit})`, color: plt.font },
+                    yaxis: { title: `${factors[fj].name} (${factors[fj].unit})`, color: plt.font },
+                    zaxis: { title: `${a.rd.name} (${a.rd.unit})`, color: plt.font },
+                    bgcolor: 'transparent',
+                  },
+                  margin: { t: 10, b: 10, l: 10, r: 10 },
+                  paper_bgcolor: 'transparent',
+                  font: { color: plt.font, size: 11 },
+                  height: 360,
+                }, { responsive: true, displayModeBar: false });
+              } else {
+                Plotly.newPlot(contDiv, [{
+                  type: 'contour', x: xDec, y: yDec, z,
+                  colorscale: 'RdYlGn', reversescale: a.rd.goal === 'minimize',
+                  colorbar: { title: { text: a.rd.unit, side: 'right' }, thickness: 14, len: 0.9 },
+                  contours: { coloring: 'heatmap' },
+                  hovertemplate: `${factors[fi].name}: %{x:.2f}<br>${factors[fj].name}: %{y:.2f}<br>${a.rd.name}: %{z:.3f}<extra></extra>`,
+                }], {
+                  xaxis: { title: `${factors[fi].name} (${factors[fi].unit})`, color: plt.font, gridcolor: plt.grid },
+                  yaxis: { title: `${factors[fj].name} (${factors[fj].unit})`, color: plt.font, gridcolor: plt.grid },
+                  margin: { t: 8, b: 55, l: 70, r: 80 },
+                  paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+                  font: { color: plt.font, size: 12 }, height: 290,
+                }, { responsive: true, displayModeBar: false });
+              }
+            } else {
+              try { Plotly.purge(contDiv); } catch(_) {}
+            }
+          }
+
+          // Residuals vs Fitted
+          const residDiv = auxRefs.current[`resid_${a.id}`];
+          if (residDiv && a.residuals) {
+            Plotly.newPlot(residDiv, [{
+              type: 'scatter', mode: 'markers',
+              x: a.yHat, y: a.residuals,
+              marker: { color: plt.pos, size: 7, opacity: 0.8 },
+              hovertemplate: 'Fitted: %{x:.3f}<br>Residual: %{y:.4f}<extra></extra>',
+            }, {
+              type: 'scatter', mode: 'lines',
+              x: [Math.min(...a.yHat), Math.max(...a.yHat)], y: [0, 0],
+              line: { color: plt.neg, width: 1.5, dash: 'dot' },
+              showlegend: false, hoverinfo: 'skip',
+            }], {
+              xaxis: { title: 'Fitted value', color: plt.font, gridcolor: plt.grid },
+              yaxis: { title: 'Residual', color: plt.font, gridcolor: plt.grid },
+              margin: { t: 8, b: 52, l: 65, r: 20 },
+              paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+              font: { color: plt.font, size: 12 }, height: 220, showlegend: false,
+            }, { responsive: true, displayModeBar: false });
+          }
+
+          // Normal Q-Q plot
+          const qqDiv = auxRefs.current[`qq_${a.id}`];
+          if (qqDiv && a.residuals) {
+            const sorted = [...a.residuals].sort((a, b) => a - b);
+            const n = sorted.length;
+            const theoretical = sorted.map((_, i) => normQuantile((i + 0.5) / n));
+            Plotly.newPlot(qqDiv, [{
+              type: 'scatter', mode: 'markers',
+              x: theoretical, y: sorted,
+              marker: { color: plt.pos, size: 7, opacity: 0.8 },
+              hovertemplate: 'Theoretical: %{x:.3f}<br>Residual: %{y:.4f}<extra></extra>',
+            }, {
+              type: 'scatter', mode: 'lines',
+              x: [theoretical[0], theoretical[n-1]],
+              y: [theoretical[0], theoretical[n-1]].map(t => t * Math.sqrt(a.mse || 1)),
+              line: { color: plt.neg, width: 1.5, dash: 'dot' },
+              showlegend: false, hoverinfo: 'skip',
+            }], {
+              xaxis: { title: 'Theoretical quantile', color: plt.font, gridcolor: plt.grid },
+              yaxis: { title: 'Residual', color: plt.font, gridcolor: plt.grid },
+              margin: { t: 8, b: 52, l: 65, r: 20 },
+              paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+              font: { color: plt.font, size: 12 }, height: 220, showlegend: false,
+            }, { responsive: true, displayModeBar: false });
+          }
+        }
+      });
+
+      return () => {
+        Object.values(chartRefs.current).forEach(div => {
+          if (div) try { Plotly.purge(div); } catch(_) {}
+        });
+        Object.values(auxRefs.current).forEach(div => {
+          if (div) try { Plotly.purge(div); } catch(_) {}
+        });
+      };
+    }, [analysis, contourPairs, surface3D]);
+
+    const badge = (txt, color, bg) =>
+      e('span', {style:{fontSize:'11px',padding:'2px 7px',borderRadius:'var(--radius-md)',background:bg,color,marginLeft:'6px'}}, txt);
+
+    const generatePDF = async () => {
+      if (typeof window.html2pdf === 'undefined') { alert('PDF library not loaded. Check internet connection.'); return; }
+      setPdfLoading(true);
+      try {
+        // Capture all Plotly charts as PNG data URLs before building the report
+        const imgs = {};
+        for (const a of analysis) {
+          if (a.insufficient || a.singular) continue;
+          const targets = [
+            ['main',     chartRefs.current[a.id]],
+            ['interact', auxRefs.current['interact_' + a.id]],
+            ['contour',  auxRefs.current['contour_'  + a.id]],
+            ['resid',    auxRefs.current['resid_'    + a.id]],
+            ['qq',       auxRefs.current['qq_'       + a.id]],
+          ];
+          for (const [k, div] of targets) {
+            if (div && div.data) {
+              try { imgs[k + '_' + a.id] = await Plotly.toImage(div, {format:'png', width:580, height:310}); }
+              catch(_) {}
+            }
+          }
+        }
+
+        const today = new Date().toLocaleDateString();
+        const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+        // ── Report HTML ───────────────────────────────────────────────────
+        const parts = [];
+
+        // Header
+        parts.push(
+          '<div style="border-bottom:2px solid #b45309;padding-bottom:14px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-end;">' +
+            '<div>' +
+              '<h1 style="font-size:20px;font-weight:600;margin:0 0 3px;color:#1a1916;">DOE Analysis Report</h1>' +
+              '<p style="font-size:13px;color:#6b6960;margin:0;">' + esc(pName || '') + (pName && pType ? ' — ' : '') + esc(pType || '') + '</p>' +
+            '</div>' +
+            '<p style="font-size:11px;color:#a09e96;margin:0;">' + esc(today) + '</p>' +
+          '</div>'
+        );
+
+        // Design summary cards
+        parts.push(
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;">' +
+            '<div style="background:#f5f4f0;border-radius:8px;padding:12px;">' +
+              '<p style="font-size:11px;color:#6b6960;margin:0 0 2px;">Design</p>' +
+              '<p style="font-size:13px;font-weight:500;margin:0;">' + esc(design.nm) + '</p>' +
+              '<p style="font-size:12px;color:#6b6960;margin:4px 0 0;">' + design.runs + ' runs · ' + factors.length + ' factor' + (factors.length !== 1 ? 's' : '') + ' · ' + resps.length + ' response' + (resps.length !== 1 ? 's' : '') + '</p>' +
+            '</div>' +
+            '<div style="background:#f5f4f0;border-radius:8px;padding:12px;">' +
+              '<p style="font-size:11px;color:#6b6960;margin:0 0 2px;">Objective</p>' +
+              '<p style="font-size:13px;font-weight:500;margin:0;">' + (obj === OBJ.SCREEN ? 'Screening' : 'Optimization (RSM)') + '</p>' +
+            '</div>' +
+          '</div>'
+        );
+
+        // Factors table
+        parts.push('<h3 style="font-size:11px;font-weight:600;color:#6b6960;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 6px;">Factors</h3>');
+        parts.push('<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:18px;">');
+        parts.push('<thead><tr style="border-bottom:1px solid #dddbd5;">');
+        ['Factor','Unit','Low (−1)','High (+1)'].forEach((h, hi) =>
+          parts.push('<th style="text-align:' + (hi===0?'left':'right') + ';padding:5px 8px;color:#6b6960;font-weight:400;">' + h + '</th>')
+        );
+        parts.push('</tr></thead><tbody>');
+        factors.forEach(f => {
+          parts.push('<tr style="border-bottom:0.5px solid #dddbd5;">');
+          parts.push('<td style="padding:5px 8px;font-weight:500;">' + esc(f.name) + '</td>');
+          parts.push('<td style="padding:5px 8px;color:#6b6960;text-align:right;">' + esc(f.unit) + '</td>');
+          parts.push('<td style="padding:5px 8px;text-align:right;">' + f.low + '</td>');
+          parts.push('<td style="padding:5px 8px;text-align:right;">' + f.high + '</td>');
+          parts.push('</tr>');
+        });
+        parts.push('</tbody></table>');
+
+        // Design matrix
+        parts.push('<div style="page-break-before:always;"></div>');
+        parts.push('<h2 style="font-size:14px;font-weight:600;color:#1a1916;margin:0 0 10px;">Design Matrix</h2>');
+        parts.push('<table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:20px;">');
+        parts.push('<thead><tr style="background:#f5f4f0;border-bottom:1px solid #dddbd5;">');
+        parts.push('<th style="text-align:center;padding:5px 6px;color:#6b6960;font-weight:500;">#</th>');
+        factors.forEach(f => parts.push('<th style="text-align:left;padding:5px 6px;color:#6b6960;font-weight:500;">' + esc(f.name) + '<br/><span style="font-weight:400;font-size:9px;">' + esc(f.unit) + '</span></th>'));
+        resps.forEach(r => parts.push('<th style="text-align:left;padding:5px 6px;color:#b45309;font-weight:500;">' + esc(r.name) + '<br/><span style="font-weight:400;font-size:9px;">' + esc(r.unit) + '</span></th>'));
+        parts.push('</tr></thead><tbody>');
+        design.mat.forEach((row, ri) => {
+          parts.push('<tr style="border-bottom:0.5px solid #dddbd5;">');
+          parts.push('<td style="padding:4px 6px;text-align:center;color:#a09e96;">' + (ri+1) + '</td>');
+          row.forEach((c, ci) => {
+            const actual = decode(c, factors[ci].low, factors[ci].high);
+            const fmt = actual % 1 === 0 ? actual : actual.toFixed(1);
+            const clr = c === 0 ? '#6b6960' : c > 0 ? '#065f46' : '#991b1b';
+            parts.push('<td style="padding:4px 6px;font-weight:500;color:' + clr + ';">' + fmt + '</td>');
+          });
+          resps.forEach(r => {
+            const v = parseFloat(rvals[ri + '_' + r.id]);
+            parts.push('<td style="padding:4px 6px;">' + (isNaN(v) ? '—' : v) + '</td>');
+          });
+          parts.push('</tr>');
+        });
+        parts.push('</tbody></table>');
+
+        // Per-response analysis
+        analysis.forEach(a => {
+          parts.push('<div style="page-break-before:always;">');
+          parts.push(
+            '<div style="border-bottom:1.5px solid #dddbd5;padding-bottom:10px;margin-bottom:12px;">' +
+              '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">' +
+                '<h2 style="font-size:15px;font-weight:600;margin:0;color:#1a1916;">' + esc(a.rd.name) + '</h2>' +
+                (a.rd.unit ? '<span style="font-size:10px;padding:2px 6px;background:#f5f4f0;border-radius:5px;color:#6b6960;">' + esc(a.rd.unit) + '</span>' : '') +
+                '<span style="font-size:10px;padding:2px 6px;border-radius:5px;background:' + (a.rd.goal==='maximize'?'#d1fae5':'#fee2e2') + ';color:' + (a.rd.goal==='maximize'?'#065f46':'#991b1b') + ';">' + (a.rd.goal==='maximize'?'↑ maximize':'↓ minimize') + '</span>' +
+                (a.r2 != null ? '<span style="font-size:10px;padding:2px 6px;background:#fef3c7;border-radius:5px;color:#78350f;">R² = ' + a.r2.toFixed(3) + '</span>' : '') +
+                (a.r2adj != null ? '<span style="font-size:10px;padding:2px 6px;background:#f5f4f0;border-radius:5px;color:#6b6960;">R²adj = ' + a.r2adj.toFixed(3) + '</span>' : '') +
+              '</div>' +
+            '</div>'
+          );
+
+          if (a.insufficient) {
+            parts.push('<p style="font-size:12px;color:#6b6960;">Insufficient data: need ' + a.need + ' runs with values, have ' + a.have + '.</p>');
+          } else if (a.singular) {
+            parts.push('<p style="font-size:12px;color:#991b1b;">Model could not be fitted — design matrix is rank-deficient.</p>');
+          } else {
+            // Main chart (Pareto or slice)
+            if (imgs['main_' + a.id])
+              parts.push('<img src="' + imgs['main_' + a.id] + '" style="width:100%;max-width:560px;display:block;margin:0 auto 10px;" />');
+
+            // 2FI chart
+            if (a.type === 'screen' && imgs['interact_' + a.id]) {
+              parts.push('<p style="font-size:11px;font-weight:600;color:#6b6960;margin:10px 0 4px;">2-Factor Interactions</p>');
+              parts.push('<img src="' + imgs['interact_' + a.id] + '" style="width:100%;max-width:560px;display:block;margin:0 auto 10px;" />');
+            }
+
+            // Screening main effects table
+            if (a.type === 'screen' && a.effects) {
+              const sorted = factors.map((f, i) => ({name: f.name, eff: a.effects[i]})).sort((x, y) => Math.abs(y.eff) - Math.abs(x.eff));
+              parts.push('<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:14px;">');
+              parts.push('<thead><tr style="border-bottom:1px solid #dddbd5;"><th style="text-align:left;padding:5px 8px;color:#6b6960;font-weight:400;">Factor</th><th style="text-align:right;padding:5px 8px;color:#6b6960;font-weight:400;">Main Effect</th></tr></thead><tbody>');
+              sorted.forEach(({name, eff}) => {
+                parts.push('<tr style="border-bottom:0.5px solid #dddbd5;">');
+                parts.push('<td style="padding:5px 8px;font-weight:500;">' + esc(name) + '</td>');
+                parts.push('<td style="padding:5px 8px;text-align:right;color:' + (eff >= 0 ? '#065f46' : '#991b1b') + ';font-weight:500;">' + (eff >= 0 ? '+' : '') + eff.toFixed(4) + '</td>');
+                parts.push('</tr>');
+              });
+              parts.push('</tbody></table>');
+            }
+
+            // Contour / surface
+            if (a.type === 'rsm' && imgs['contour_' + a.id]) {
+              parts.push('<p style="font-size:11px;font-weight:600;color:#6b6960;margin:10px 0 4px;">Response Surface</p>');
+              parts.push('<img src="' + imgs['contour_' + a.id] + '" style="width:100%;max-width:520px;display:block;margin:0 auto 10px;" />');
+            }
+
+            // Residual diagnostics
+            if (a.type === 'rsm' && (imgs['resid_' + a.id] || imgs['qq_' + a.id])) {
+              parts.push('<p style="font-size:11px;font-weight:600;color:#6b6960;margin:10px 0 4px;">Residual Diagnostics</p>');
+              parts.push('<div style="display:flex;gap:10px;justify-content:center;margin-bottom:10px;">');
+              if (imgs['resid_' + a.id]) parts.push('<img src="' + imgs['resid_' + a.id] + '" style="width:48%;max-width:270px;" />');
+              if (imgs['qq_'    + a.id]) parts.push('<img src="' + imgs['qq_'    + a.id] + '" style="width:48%;max-width:270px;" />');
+              parts.push('</div>');
+            }
+
+            // RSM coefficients
+            if (a.type === 'rsm' && a.beta) {
+              parts.push('<p style="font-size:11px;font-weight:600;color:#6b6960;margin:10px 0 4px;">Model Coefficients</p>');
+              parts.push('<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">');
+              if (a.r2adj != null) parts.push('<span style="font-size:10px;padding:2px 8px;background:#f5f4f0;border-radius:5px;color:#6b6960;">R²adj = ' + a.r2adj.toFixed(3) + '</span>');
+              if (a.mse  != null) parts.push('<span style="font-size:10px;padding:2px 8px;background:#f5f4f0;border-radius:5px;color:#6b6960;">MSE = ' + a.mse.toFixed(4) + '</span>');
+              if (a.dfErr!= null) parts.push('<span style="font-size:10px;padding:2px 8px;background:#f5f4f0;border-radius:5px;color:#6b6960;">df error = ' + a.dfErr + '</span>');
+              parts.push('</div>');
+              parts.push('<p style="font-size:10px;color:#a09e96;margin:0 0 5px;">Coded units · significance: * |t|&gt;2 &nbsp; ** |t|&gt;3 &nbsp; *** |t|&gt;4</p>');
+              parts.push('<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:14px;">');
+              parts.push('<thead><tr style="border-bottom:1px solid #dddbd5;">');
+              ['Term','Coefficient','Std. Error','t-stat','Sig.'].forEach((h, hi) =>
+                parts.push('<th style="text-align:' + (hi===0?'left':'right') + ';padding:5px 8px;color:#6b6960;font-weight:400;">' + h + '</th>')
+              );
+              parts.push('</tr></thead><tbody>');
+              termLabels(factors).forEach((lbl, i) => {
+                const t = a.tStat ? a.tStat[i] : null;
+                const stars = t != null ? sigStars(t) : '';
+                const sig = stars !== 'ns' && stars !== '';
+                const starClr = stars==='***'||stars==='**' ? '#065f46' : stars==='*' ? '#b45309' : '#a09e96';
+                parts.push('<tr style="border-bottom:0.5px solid #dddbd5;">');
+                parts.push('<td style="padding:5px 8px;font-family:monospace;color:#6b6960;">' + esc(lbl) + '</td>');
+                parts.push('<td style="padding:5px 8px;text-align:right;font-weight:' + (sig?'500':'400') + ';color:' + (sig?'#1a1916':'#a09e96') + ';">' + a.beta[i].toFixed(4) + '</td>');
+                parts.push('<td style="padding:5px 8px;text-align:right;color:#a09e96;">' + (a.se ? a.se[i].toFixed(4) : '—') + '</td>');
+                parts.push('<td style="padding:5px 8px;text-align:right;color:' + (t && Math.abs(t)>2 ? '#1a1916' : '#a09e96') + ';">' + (t != null ? t.toFixed(2) : '—') + '</td>');
+                parts.push('<td style="padding:5px 8px;text-align:right;font-weight:600;color:' + starClr + ';">' + (stars || '—') + '</td>');
+                parts.push('</tr>');
+              });
+              parts.push('</tbody></table>');
+
+              // Optimum
+              if (a.opt) {
+                parts.push(
+                  '<div style="background:#f5f4f0;border-radius:8px;padding:12px;margin-top:8px;">' +
+                    '<p style="font-weight:500;font-size:13px;margin:0 0 10px;color:#1a1916;">Predicted Optimum</p>' +
+                    '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">'
+                );
+                a.opt.x.forEach((xi, fi) => {
+                  parts.push(
+                    '<div style="background:#fff;border:0.5px solid #dddbd5;border-radius:7px;padding:8px 12px;text-align:center;min-width:90px;">' +
+                      '<p style="font-size:10px;color:#6b6960;margin:0 0 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:90px;">' + esc(factors[fi].name) + '</p>' +
+                      '<p style="font-size:15px;font-weight:500;margin:0 0 1px;">' + decode(xi, factors[fi].low, factors[fi].high).toFixed(2) + '</p>' +
+                      '<p style="font-size:10px;color:#a09e96;margin:0;">' + esc(factors[fi].unit) + '</p>' +
+                    '</div>'
+                  );
+                });
+                parts.push(
+                    '</div>' +
+                    '<p style="font-size:12px;color:#6b6960;margin:0;">Predicted <strong style="color:#1a1916;">' + esc(a.rd.name) + '</strong>: <strong style="color:#1a1916;">' + a.opt.y.toFixed(3) + ' ' + esc(a.rd.unit) + '</strong></p>' +
+                  '</div>'
+                );
+              }
+            }
+          }
+          parts.push('</div>');
+        });
+
+        // Footer
+        parts.push('<div style="margin-top:20px;padding-top:10px;border-top:1px solid #dddbd5;text-align:center;"><p style="font-size:10px;color:#a09e96;margin:0;">Generated by OptiMe — Foundry DOE Designer · ' + esc(today) + '</p></div>');
+
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'font-family:Arial,sans-serif;color:#1a1916;max-width:740px;padding:16px;background:#ffffff;';
+        wrap.innerHTML = parts.join('');
+        document.body.appendChild(wrap);
+
+        await window.html2pdf().set({
+          margin: 10,
+          filename: (pName || pType || 'optme') + '-report.pdf',
+          image: {type:'jpeg', quality:0.95},
+          html2canvas: {scale:2, useCORS:true, backgroundColor:'#ffffff'},
+          jsPDF: {unit:'mm', format:'a4', orientation:'portrait'},
+        }).from(wrap).save();
+
+        document.body.removeChild(wrap);
+      } catch(err) {
+        console.error(err);
+        alert('PDF export failed: ' + err.message);
+      }
+      setPdfLoading(false);
+    };
+
+    return e('div', null,
+
+      e('div', {style:{display:'flex',justifyContent:'flex-end',marginBottom:'0.75rem'}},
+        e('button', {
+          style:{...C.btnXs, display:'flex', alignItems:'center', gap:'4px', opacity: pdfLoading ? 0.6 : 1},
+          onClick: generatePDF,
+          disabled: pdfLoading,
+        },
+          e('i', {className:'ti ti-file-type-pdf', style:{fontSize:'13px'}}),
+          pdfLoading ? ' Generating…' : ' Export PDF'
+        )
+      ),
+
+      analysis.map(a =>
+        e('div', {key: a.id, style: C.card},
+
+          // Header
+          e('div', {style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem'}},
+            e('div', {style:{display:'flex',alignItems:'center',flexWrap:'wrap',gap:'4px'}},
+              e('p', {style:{...C.ttl, margin:0}}, a.rd.name),
+              a.rd.unit && badge(a.rd.unit, 'var(--text-secondary)', 'var(--bg-tertiary)'),
+              badge(
+                a.rd.goal === 'maximize' ? '↑ maximize' : '↓ minimize',
+                a.rd.goal === 'maximize' ? 'var(--success)' : 'var(--danger)',
+                a.rd.goal === 'maximize' ? 'var(--success-bg)' : 'var(--danger-bg)'
+              ),
+              a.r2 != null && badge(`R² = ${a.r2.toFixed(3)}`, 'var(--amber-text)', 'var(--amber-bg)'),
+              a.r2adj != null && badge(`R²adj = ${a.r2adj.toFixed(3)}`, 'var(--text-secondary)', 'var(--bg-tertiary)')
+            ),
+            a.type === 'rsm' && !a.singular && !a.insufficient &&
+              e('button', {
+                style: C.btnXs,
+                onClick: () => setShowCoefs(p => ({...p, [a.id]: !p[a.id]})),
+              }, showCoefs[a.id] ? 'Hide coefficients' : 'Show coefficients')
+          ),
+
+          // Insufficient data
+          a.insufficient && e('p', {style:{fontSize:'13px',color:'var(--text-secondary)'}},
+            `Need at least ${a.need} runs with values entered (have ${a.have}). Return to the Design step and fill in more measured results.`
+          ),
+
+          // Singular matrix
+          a.singular && e('p', {style:{fontSize:'13px',color:'var(--danger)'}},
+            'Model could not be fitted — the design matrix is rank-deficient. Add more experimental runs or reduce the number of model terms.'
+          ),
+
+          // Chart div
+          !a.insufficient && !a.singular &&
+            e('div', { ref: el => { chartRefs.current[a.id] = el; } }),
+
+          // 2FI bar chart (screening only)
+          a.type === 'screen' && !a.insufficient && !a.singular && factors.length >= 2 &&
+            e('div', {style:{marginTop:'0.75rem'}},
+              e('p', {style:{fontSize:'12px',fontWeight:'500',color:'var(--text-secondary)',margin:'0 0 4px'}},
+                '2-factor interactions ',
+                e('span', {style:{fontSize:'11px',color: factors.length <= 3 ? 'var(--success)' : 'var(--warning-text)'}},
+                  factors.length <= 3 ? '(exact — full factorial)' : '(partially confounded — PB design, interpret with caution)'
+                )
+              ),
+              e('div', { ref: el => { auxRefs.current[`interact_${a.id}`] = el; } })
+            ),
+
+          // Contour / 3D Surface (RSM only)
+          a.type === 'rsm' && !a.insufficient && !a.singular && factors.length >= 2 &&
+            e('div', {style:{marginTop:'0.75rem'}},
+              e('div', {style:{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap',marginBottom:'4px'}},
+                e('p', {style:{fontSize:'12px',fontWeight:'500',color:'var(--text-secondary)',margin:0}}, surface3D[a.id] ? '3D surface:' : 'Contour plot:'),
+                e('select', {
+                  style:{...C.inpSm,width:'auto'},
+                  value: (contourPairs[a.id]||[0,1])[0],
+                  onChange: ev => setContourPairs(p => ({...p, [a.id]: [parseInt(ev.target.value), (p[a.id]||[0,1])[1]]})),
+                }, factors.map((f,i) => e('option',{key:i,value:i},f.name))),
+                e('span',{style:{fontSize:'12px',color:'var(--text-tertiary)'}},'vs'),
+                e('select', {
+                  style:{...C.inpSm,width:'auto'},
+                  value: (contourPairs[a.id]||[0,1])[1],
+                  onChange: ev => setContourPairs(p => ({...p, [a.id]: [(p[a.id]||[0,1])[0], parseInt(ev.target.value)]})),
+                }, factors.map((f,i) => e('option',{key:i,value:i},f.name))),
+                e('span',{style:{fontSize:'11px',color:'var(--text-tertiary)'}},'— others fixed'),
+                e('button', {
+                  style: surface3D[a.id]
+                    ? {...C.btnXs, background:'var(--amber-bg)', color:'var(--amber-text)', borderColor:'var(--amber-border)'}
+                    : C.btnXs,
+                  onClick: () => setSurface3D(p => ({...p, [a.id]: !p[a.id]})),
+                }, surface3D[a.id] ? '2D Contour' : '3D Surface')
+              ),
+              e('div', { ref: el => { auxRefs.current[`contour_${a.id}`] = el; } })
+            ),
+
+          // Residual diagnostics (RSM only)
+          a.type === 'rsm' && !a.insufficient && !a.singular && a.residuals &&
+            e('div', {style:{marginTop:'0.75rem'}},
+              e('p', {style:{fontSize:'12px',fontWeight:'500',color:'var(--text-secondary)',margin:'0 0 6px'}}, 'Residual diagnostics'),
+              e('div', {style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}},
+                e('div', null,
+                  e('p',{style:{fontSize:'11px',color:'var(--text-tertiary)',margin:'0 0 2px',textAlign:'center'}},'Residuals vs Fitted'),
+                  e('div', { ref: el => { auxRefs.current[`resid_${a.id}`] = el; } })
+                ),
+                e('div', null,
+                  e('p',{style:{fontSize:'11px',color:'var(--text-tertiary)',margin:'0 0 2px',textAlign:'center'}},'Normal Q-Q'),
+                  e('div', { ref: el => { auxRefs.current[`qq_${a.id}`] = el; } })
+                )
+              )
+            ),
+
+          // Coefficient table with ANOVA stats (RSM, toggled)
+          a.type === 'rsm' && !a.insufficient && !a.singular && showCoefs[a.id] &&
+            e('div', {style:{marginTop:'0.75rem'}},
+              e('div', {style:{display:'flex',gap:'6px',marginBottom:'8px',flexWrap:'wrap'}},
+                a.r2adj != null && e('span',{style:{fontSize:'11px',padding:'2px 8px',borderRadius:'var(--radius-md)',background:'var(--bg-tertiary)',color:'var(--text-secondary)'}}, `R²adj = ${a.r2adj.toFixed(3)}`),
+                a.mse != null && e('span',{style:{fontSize:'11px',padding:'2px 8px',borderRadius:'var(--radius-md)',background:'var(--bg-tertiary)',color:'var(--text-secondary)'}}, `MSE = ${a.mse.toFixed(4)}`),
+                a.dfErr != null && e('span',{style:{fontSize:'11px',padding:'2px 8px',borderRadius:'var(--radius-md)',background:'var(--bg-tertiary)',color:'var(--text-secondary)'}}, `df error = ${a.dfErr}`)
+              ),
+              e('p', {style:{fontSize:'11px',color:'var(--text-tertiary)',marginBottom:'6px'}}, 'Coded units · significance: * |t|>2  ** |t|>3  *** |t|>4'),
+              e('div', {style:{overflowX:'auto'}},
+                e('table', {style:{width:'100%',borderCollapse:'collapse',fontSize:'12px'}},
+                  e('thead', null,
+                    e('tr', null,
+                      ['Term','Coefficient','Std. Error','t-stat','Sig.'].map((h,hi) =>
+                        e('th',{key:h,style:{textAlign:hi===0?'left':'right',padding:'5px 8px',borderBottom:'0.5px solid var(--border-light)',color:'var(--text-secondary)',fontWeight:'400'}},h)
+                      )
+                    )
+                  ),
+                  e('tbody', null,
+                    termLabels(factors).map((lbl, i) => {
+                      const t = a.tStat ? a.tStat[i] : null;
+                      const stars = t != null ? sigStars(t) : '';
+                      const sig = stars !== 'ns' && stars !== '';
+                      return e('tr', {key:i, style:{borderBottom:'0.5px solid var(--border-light)'}},
+                        e('td',{style:{padding:'5px 8px',fontFamily:'monospace',color:'var(--text-secondary)'}}, lbl),
+                        e('td',{style:{padding:'5px 8px',textAlign:'right',fontWeight:sig?'500':'400',color:sig?'var(--text-primary)':'var(--text-tertiary)',fontVariantNumeric:'tabular-nums'}}, a.beta[i].toFixed(4)),
+                        e('td',{style:{padding:'5px 8px',textAlign:'right',color:'var(--text-tertiary)',fontVariantNumeric:'tabular-nums'}}, a.se?a.se[i].toFixed(4):'—'),
+                        e('td',{style:{padding:'5px 8px',textAlign:'right',color:t&&Math.abs(t)>2?'var(--text-primary)':'var(--text-tertiary)',fontVariantNumeric:'tabular-nums'}}, t!=null?t.toFixed(2):'—'),
+                        e('td',{style:{padding:'5px 8px',textAlign:'right',fontWeight:'600',color:stars==='***'||stars==='**'?'var(--success)':stars==='*'?'var(--amber)':'var(--text-tertiary)'}}, stars||'—')
+                      );
+                    })
+                  )
+                )
+              )
+            ),
+
+          // Optimum (RSM)
+          a.type === 'rsm' && !a.insufficient && !a.singular && a.opt &&
+            e('div', {style:{...C.sec, marginTop:'0.75rem', marginBottom:0}},
+              e('p', {style:{fontWeight:'500',fontSize:'13px',margin:'0 0 10px'}}, 'Predicted optimum'),
+              e('div', {style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(110px,1fr))',gap:'6px',marginBottom:'10px'}},
+                a.opt.x.map((xi, fi) =>
+                  e('div', {key:fi, style:{background:'var(--bg-primary)',border:'0.5px solid var(--border-light)',borderRadius:'var(--radius-md)',padding:'7px 10px',textAlign:'center'}},
+                    e('p',{style:{fontSize:'11px',color:'var(--text-secondary)',margin:'0 0 2px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}, factors[fi].name),
+                    e('p',{style:{fontSize:'15px',fontWeight:'500',margin:'0 0 1px'}}, decode(xi, factors[fi].low, factors[fi].high).toFixed(2)),
+                    e('p',{style:{fontSize:'11px',color:'var(--text-tertiary)',margin:0}}, factors[fi].unit)
+                  )
+                )
+              ),
+              e('p', {style:{fontSize:'13px',color:'var(--text-secondary)',margin:0}},
+                'Predicted ', e('strong',{style:{color:'var(--text-primary)'}}, a.rd.name), ': ',
+                e('strong',{style:{color:'var(--text-primary)'}}, `${a.opt.y.toFixed(3)} ${a.rd.unit}`)
+              )
+            )
+        )
+      ),
+
+      (() => {
+        const fitted = analysis.filter(a => a.type === 'rsm' && a.beta && !a.singular && !a.insufficient);
+        if (!fitted.length) return null;
+        const profCoded = factors.map((_, fi) => profilerVals[fi] !== undefined ? profilerVals[fi] : 0);
+        return e('div', {style:{...C.card,marginBottom:'0.75rem'}},
+          e('p', {style:{...C.ttl, margin:'0 0 4px'}}, 'Prediction Profiler'),
+          e('p', {style:{fontSize:'12px',color:'var(--text-secondary)',marginBottom:'1rem'}}, 'Drag the sliders to explore the predicted response at any factor setting.'),
+          factors.map((f, fi) => {
+            const coded = profCoded[fi];
+            const actual = decode(coded, f.low, f.high);
+            return e('div', {key:fi, style:{marginBottom:'12px'}},
+              e('div', {style:{display:'flex',justifyContent:'space-between',marginBottom:'2px'}},
+                e('span',{style:{fontSize:'12px',fontWeight:'500'}}, f.name),
+                e('span',{style:{fontSize:'12px',color:'var(--amber-text)',fontWeight:'600'}}, `${actual.toFixed(2)} ${f.unit}`)
+              ),
+              e('input', {
+                type:'range', min:-1, max:1, step:0.02, value:coded,
+                onChange: ev => setProfilerVals(p => ({...p, [fi]: parseFloat(ev.target.value)})),
+                style:{width:'100%', accentColor:'var(--amber-border)', cursor:'pointer'},
+              }),
+              e('div', {style:{display:'flex',justifyContent:'space-between'}},
+                e('span',{style:{fontSize:'10px',color:'var(--text-tertiary)'}}, `${f.low} ${f.unit}`),
+                e('span',{style:{fontSize:'10px',color:'var(--text-tertiary)'}}, 'midpoint'),
+                e('span',{style:{fontSize:'10px',color:'var(--text-tertiary)'}}, `${f.high} ${f.unit}`)
+              )
+            );
+          }),
+          e('div', {style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:'8px',marginTop:'0.75rem'}},
+            fitted.map(a => {
+              const pred = predictRSM(a.beta, profCoded);
+              return e('div', {key:a.id, style:{background:'var(--bg-tertiary)',borderRadius:'var(--radius-md)',padding:'10px',textAlign:'center'}},
+                e('p',{style:{fontSize:'11px',color:'var(--text-secondary)',margin:'0 0 3px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}, a.rd.name),
+                e('p',{style:{fontSize:'22px',fontWeight:'600',margin:'0 0 1px',color:'var(--amber-text)'}}, pred.toFixed(3)),
+                e('p',{style:{fontSize:'11px',color:'var(--text-tertiary)',margin:0}}, a.rd.unit)
+              );
+            })
+          )
+        );
+      })(),
+
+      e('div', {style:{...C.sec, borderLeft:'2px solid var(--amber-border)', marginBottom:0}},
+        e('p', {style:{fontWeight:'500',margin:'0 0 4px',fontSize:'13px'}}, 'Next step'),
+        e('p', {style:{fontSize:'13px',color:'var(--text-secondary)',margin:0}},
+          obj === OBJ.SCREEN
+            ? 'Carry the factors with the largest main effects into an RSM optimization design to locate the optimum.'
+            : 'Validate the predicted optimum with 2–3 confirmation runs before adopting the settings in production.'
+        )
+      )
+    );
+  }
+
+  // ── Main App ──────────────────────────────────────────────────────────
+
+  function App() {
+    const [step, setStep] = useState(0);
+    const [pName, setPName] = useState("");
+    const [pType, setPType] = useState("");
+    const [obj, setObj] = useState(null);
+    const [factors, setFactors] = useState([]);
+    const [resps, setResps] = useState([]);
+    const [nf, setNf] = useState({name:"",unit:"",low:"",high:""});
+    const [nr, setNr] = useState({name:"",unit:"",goal:"minimize"});
+    const [aiLoad, setAiLoad] = useState(false);
+    const [aiSug, setAiSug] = useState(null);
+    const [copied, setCopied] = useState(false);
+    const [rvals, setRvals] = useState({});
+    const [showCodes, setShowCodes] = useState(true);
+    const [timePerRun, setTimePerRun] = useState('');
+    const [selectedModel, setSelectedModel] = useState(null);
+
+    const uidRef = useRef(1);
+    const uid = () => uidRef.current++;
+    const aiAbortRef = useRef(null);
+
+    const saveProject = () => {
+      const data = JSON.stringify({version:'1.0',pName,pType,obj,factors,resps,rvals,timePerRun,selectedModel,step});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([data],{type:'application/json'}));
+      a.download = `${pName||pType||'optme'}-design.json`;
+      a.click();
+    };
+
+    const loadProject = () => {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = '.json';
+      inp.onchange = ev => {
+        const fr = new FileReader();
+        fr.onload = re => {
+          try {
+            const d = JSON.parse(re.target.result);
+            setPName(d.pName||''); setPType(d.pType||''); setObj(d.obj||null);
+            setFactors(d.factors||[]); setResps(d.resps||[]); setRvals(d.rvals||{});
+            setTimePerRun(d.timePerRun||''); setSelectedModel(d.selectedModel||null);
+            const maxId = Math.max(0,...[...(d.factors||[]),...(d.resps||[])].map(x=>x.id||0));
+            uidRef.current = maxId + 1;
+            setStep(d.step||0);
+          } catch(_) { alert('Invalid project file.'); }
+        };
+        fr.readAsText(ev.target.files[0]);
+      };
+      inp.click();
+    };
+
+    useEffect(() => {
+      if (!pType) return;
+      localStorage.setItem('optme_autosave', JSON.stringify({pName,pType,obj,factors,resps,rvals,timePerRun,selectedModel,step}));
+    }, [pName,pType,obj,factors,resps,rvals,timePerRun,selectedModel,step]);
+
+    useEffect(() => {
+      try {
+        const d = JSON.parse(localStorage.getItem('optme_autosave')||'{}');
+        if (!d.pType) return;
+        setPName(d.pName||''); setPType(d.pType); setObj(d.obj||null);
+        setFactors(d.factors||[]); setResps(d.resps||[]); setRvals(d.rvals||{});
+        setTimePerRun(d.timePerRun||''); setSelectedModel(d.selectedModel||null);
+        const maxId = Math.max(0,...[...(d.factors||[]),...(d.resps||[])].map(x=>x.id||0));
+        uidRef.current = maxId + 1;
+        setStep(d.step||0);
+      } catch(_) {}
+    }, []);
+
+    const lim = obj === OBJ.SCREEN ? {mn:2,mx:15} : {mn:2,mx:5};
+
+    // Reset model choice when objective or factor count changes
+    useEffect(() => { setSelectedModel(null); }, [obj, factors.length]);
+
+    const design = useMemo(() => {
+      if (factors.length < 2 || !selectedModel) return null;
+      const n = factors.length;
+      let mat, nm;
+      switch (selectedModel) {
+        case 'ff':   mat = ff2k(n);                     nm = `Full Factorial 2^${n}`;       break;
+        case 'pb8':  mat = PB8.map(r => r.slice(0, n)); nm = 'Plackett-Burman PB8';         break;
+        case 'pb12': mat = PB12.map(r => r.slice(0, n));nm = 'Plackett-Burman PB12';        break;
+        case 'pb16': {
+          const p = [];
+          PB8.forEach(r => { p.push([...r,...r]); p.push([...r,...r.map(x=>-x)]); });
+          mat = p.slice(0,16).map(r => r.slice(0, n));
+          nm = 'Plackett-Burman PB16'; break;
+        }
+        case 'bb':   mat = genBB(n);   nm = 'Box-Behnken Design';       break;
+        case 'ccd':  mat = genCCD(n);  nm = 'Central Composite (CCD)';  break;
+        default: return null;
+      }
+      return {mat, nm, runs: mat.length};
+    }, [factors, selectedModel]);
+
+    const canNext = () => {
+      if (step === 0) return pType !== "";
+      if (step === 1) return obj !== null;
+      if (step === 2) { const n = factors.length; return n >= lim.mn && n <= lim.mx; }
+      if (step === 3) return resps.length >= 1;
+      if (step === 4) return selectedModel !== null;
+      if (step === 5) return Object.keys(rvals).length > 0;
+      return false;
+    };
+
+    const addF = f => { if (!factors.find(x => x.name === f.name)) setFactors(p => [...p, {...f, id:uid()}]); };
+    const rmF = id => setFactors(p => p.filter(f => f.id !== id));
+    const updF = (id, field, val) => setFactors(p => p.map(f => f.id===id ? {...f,[field]:parseFloat(val)||0} : f));
+    const addR = r => { if (!resps.find(x => x.name === r.name)) setResps(p => [...p, {...r, id:uid()}]); };
+    const rmR = id => setResps(p => p.filter(r => r.id !== id));
+    const addCF = () => { if (!nf.name) return; addF({...nf,low:parseFloat(nf.low)||0,high:parseFloat(nf.high)||1}); setNf({name:"",unit:"",low:"",high:""}); };
+    const addCR = () => { if (!nr.name) return; addR(nr); setNr({name:"",unit:"",goal:"minimize"}); };
+
+    const getAI = async () => {
+      if (aiAbortRef.current) aiAbortRef.current.abort();
+      const controller = new AbortController();
+      aiAbortRef.current = controller;
+      setAiLoad(true); setAiSug(null);
+      try {
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          signal: controller.signal,
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 800,
+            messages: [{role:"user", content:`Foundry DOE expert. Process: ${pType}. Goal: ${obj===OBJ.SCREEN?'screen 6–12 factors (PB design)':'optimize 3–5 factors (Box-Behnken RSM)'}. Already selected: ${factors.map(f=>f.name).join(', ')||'none'}.
+Suggest ${obj===OBJ.SCREEN?'6–8':'3–4'} relevant factors with realistic ranges and 3 quality responses.
+Return ONLY valid JSON: {"factors":[{"name":"...","unit":"...","low":X,"high":Y}],"responses":[{"name":"...","unit":"...","goal":"minimize|maximize"}],"rationale":"one sentence"}`}]
+          })
+        });
+        const data = await res.json();
+        const txt = data.content.map(b => b.text||"").join("").replace(/```json|```/g,"").trim();
+        setAiSug(JSON.parse(txt));
+      } catch(e) { if (e.name !== 'AbortError') console.error(e); }
+      if (aiAbortRef.current === controller) setAiLoad(false);
+    };
+
+    const copyCSV = () => {
+      if (!design) return;
+      const hdr = ["Run", ...factors.map(f=>`${f.name} [${f.unit}]`), ...resps.map(r=>`${r.name} [${r.unit}]`)];
+      const rows = design.mat.map((row, ri) => [
+        ri+1,
+        ...row.map((c,ci) => decode(c, factors[ci].low, factors[ci].high).toFixed(2)),
+        ...resps.map(r => rvals[`${ri}_${r.id}`] || ""),
+      ]);
+      navigator.clipboard.writeText([hdr,...rows].map(r=>r.join(",")).join("\n"));
+      setCopied(true); setTimeout(() => setCopied(false), 2000);
+    };
+
+    const exportExcel = () => {
+      if (!design || typeof XLSX === 'undefined') return;
+      const hdr = ["Run", ...factors.map(f=>`${f.name} [${f.unit}]`), ...resps.map(r=>`${r.name} [${r.unit}]`)];
+      const rows = design.mat.map((row, ri) => [
+        ri + 1,
+        ...row.map((c, ci) => parseFloat(decode(c, factors[ci].low, factors[ci].high).toFixed(3))),
+        ...resps.map(r => { const v = parseFloat(rvals[`${ri}_${r.id}`]); return isNaN(v) ? "" : v; }),
+      ]);
+      const ws = XLSX.utils.aoa_to_sheet([hdr, ...rows]);
+      // Bold header row
+      hdr.forEach((_, ci) => {
+        const cell = ws[XLSX.utils.encode_cell({r:0, c:ci})];
+        if (cell) cell.s = { font: { bold: true } };
+      });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Design");
+      XLSX.writeFile(wb, `${pName||pType||'optme'}-design.xlsx`);
+    };
+
+    const reset = () => {
+      localStorage.removeItem('optme_autosave');
+      setStep(0); setPName(""); setPType(""); setObj(null); setFactors([]); setResps([]); setAiSug(null); setRvals({}); setTimePerRun(''); setSelectedModel(null);
+    };
+
+    const e = React.createElement;
+    const ok = canNext();
+
+    const doeRec = design && selectedModel && (() => {
+      const m = MODEL_CATALOG.find(mc => mc.key === selectedModel);
+      if (!m) return null;
+      const isPB = ['pb8','pb12','pb16'].includes(selectedModel);
+      return {
+        title: `${m.label} — ${m.sub}`,
+        desc: m.desc,
+        warn: isPB ? '2FIs are partially confounded with main effects — interpret interaction results with caution.' : null,
+      };
+    })();
+
+    return e('div', null,
+
+      e('div', {style:{display:'flex',justifyContent:'flex-end',gap:'6px',marginBottom:'0.75rem'}},
+        e('button', {style:{...C.btnXs,display:'flex',alignItems:'center',gap:'4px'}, onClick:loadProject},
+          e('i',{className:'ti ti-folder-open',style:{fontSize:'13px'}}), ' Load'
+        ),
+        pType && e('button', {style:{...C.btnXs,display:'flex',alignItems:'center',gap:'4px'}, onClick:saveProject},
+          e('i',{className:'ti ti-download',style:{fontSize:'13px'}}), ' Save'
+        ),
+        pType && e('button', {
+          style:{...C.btnXs,display:'flex',alignItems:'center',gap:'4px',color:'var(--danger)',borderColor:'var(--danger)'},
+          onClick: () => window.confirm('Clear all data and start over?') && reset(),
+        }, e('i',{className:'ti ti-trash',style:{fontSize:'13px'}}), ' Clear all')
+      ),
+
+      e('div', {style:{display:"flex",alignItems:"center",marginBottom:"1.5rem"}},
+        STEPS.map((lbl, i) =>
+          e('div', {key:i, style:{display:"flex",alignItems:"center",flex:i<STEPS.length-1?"1 1 0":"0 0 auto"}},
+            e('div', {style:{display:"flex",alignItems:"center",gap:"5px"}},
+              e('div', {style:{width:"26px",height:"26px",borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"11px",fontWeight:"500",...stepCircleStyle(i,step)}},
+                i < step ? e('i', {className:"ti ti-check",style:{fontSize:"13px"}}) : i+1
+              ),
+              e('span', {style:{fontSize:"12px",color:i===step?"var(--text-primary)":i<step?"var(--text-secondary)":"var(--text-tertiary)",whiteSpace:"nowrap"}}, lbl)
+            ),
+            i < STEPS.length-1 && e('div', {style:{flex:1,height:"1px",background:"var(--border-light)",margin:"0 6px",minWidth:"6px"}})
+          )
+        )
+      ),
+
+      step === 0 && e('div', null,
+        e('div', {style:C.card},
+          e('span', {style:C.lbl}, "Experiment name (optional)"),
+          e('input', {type:"text",value:pName,onChange:ev=>setPName(ev.target.value),placeholder:"e.g. EFFECT II – gate velocity study",style:C.inp})
+        ),
+        e('div', {style:C.card},
+          e('p', {style:C.ttl}, "Casting process"),
+          e('div', null, PTYPES.map(pt => e('span', {key:pt, style:C.tag(pType===pt), onClick:()=>setPType(pt)}, pt)))
+        )
+      ),
+
+      step === 1 && e('div', {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem"}},
+        [{key:OBJ.SCREEN,icon:"ti-filter",title:"Screening",desc:"Identify vital factors from many candidates",sub:"Full Factorial / Plackett-Burman"},
+         {key:OBJ.OPTIMIZE,icon:"ti-target",title:"Optimization",desc:"Build a response surface with 2–5 factors",sub:"Box-Behnken / Central Composite CCD"}].map(o =>
+          e('div', {key:o.key, onClick:()=>setObj(o.key), style:{...C.card,cursor:"pointer",border:obj===o.key?"2px solid var(--amber-border)":"0.5px solid var(--border-light)"}},
+            e('i', {className:`ti ${o.icon}`, style:{fontSize:"30px",color:"var(--amber)",marginBottom:"10px",display:"block"}}),
+            e('p', {style:{fontWeight:"500",margin:"0 0 4px",fontSize:"15px"}}, o.title),
+            e('p', {style:{fontSize:"13px",color:"var(--text-secondary)",margin:"0 0 10px"}}, o.desc),
+            e('span', {style:{fontSize:"11px",background:"var(--bg-tertiary)",border:"0.5px solid var(--border-light)",borderRadius:"var(--radius-md)",padding:"3px 8px",color:"var(--text-secondary)"}}, o.sub)
+          )
+        )
+      ),
+
+      step === 2 && e('div', null,
+        e('div', {style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.75rem",gap:"8px"}},
+          e('div', null,
+            e('p', {style:{...C.ttl,margin:"0 0 2px"}}, "Select process factors"),
+            e('p', {style:{fontSize:"13px",color:factors.length<lim.mn||factors.length>lim.mx?"var(--danger)":"var(--text-secondary)",margin:0}},
+              `${factors.length} selected — target: ${lim.mn}–${lim.mx}${factors.length<lim.mn?` (need ${lim.mn-factors.length} more)`:""}${factors.length>lim.mx?` (remove ${factors.length-lim.mx})`:""}`
+            )
+          ),
+          e('button', {style:{...C.btnS,opacity:aiLoad?0.6:1}, onClick:getAI, disabled:aiLoad}, aiLoad?"Thinking...":"✨ AI suggest")
+        ),
+        aiSug && e('div', {style:{...C.sec,borderLeft:"2px solid var(--amber-border)",marginBottom:"0.75rem"}},
+          e('p', {style:{...C.ttl,color:"var(--amber-text)",margin:"0 0 4px"}}, "AI suggestions for "+pType),
+          e('p', {style:{fontSize:"13px",color:"var(--text-secondary)",margin:"0 0 8px"}}, aiSug.rationale),
+          e('div', {style:{marginBottom:"8px"}},
+            e('span', {style:{fontSize:"11px",color:"var(--text-tertiary)",display:"block",marginBottom:"4px"}}, "Factors"),
+            aiSug.factors?.map((f,i) => e('button', {key:i, style:{...C.btnXs,margin:"3px"}, onClick:()=>addF(f)}, `+ ${f.name} (${f.unit})`))
+          ),
+          e('div', null,
+            e('span', {style:{fontSize:"11px",color:"var(--text-tertiary)",display:"block",marginBottom:"4px"}}, "Responses"),
+            aiSug.responses?.map((r,i) => e('button', {key:i, style:{...C.btnXs,margin:"3px",color:"var(--amber)"}, onClick:()=>addR(r)}, `+ ${r.name} (${r.unit})`))
+          )
+        ),
+        pType !== 'Custom' && e('div', {style:C.card},
+          e('p', {style:C.ttl}, `Factor library — ${pType}`),
+          e('div', null,
+            FLIB[pType]?.map((f,i) => {
+              const found = factors.find(x => x.name === f.name);
+              return e('span', {key:i, style:C.tag(!!found), onClick:()=>found ? rmF(found.id) : addF(f)}, f.name);
+            })
+          )
+        ),
+        factors.length > 0 && e('div', {style:C.card},
+          e('p', {style:C.ttl}, "Configure factor ranges"),
+          e('div', {style:{overflowX:"auto"}},
+            e('table', {style:{width:"100%",borderCollapse:"collapse",fontSize:"13px"}},
+              e('thead', null,
+                e('tr', null,
+                  ["Factor","Unit","Low (−1)","High (+1)",""].map(h => e('th',{key:h,style:{textAlign:"left",padding:"6px 8px",borderBottom:"0.5px solid var(--border-light)",color:"var(--text-secondary)",fontWeight:"400",fontSize:"12px",whiteSpace:"nowrap"}},h))
+                )
+              ),
+              e('tbody', null,
+                factors.map(f =>
+                  e('tr', {key:f.id, style:{borderBottom:"0.5px solid var(--border-light)"}},
+                    e('td',{style:{padding:"6px 8px"}},f.name),
+                    e('td',{style:{padding:"6px 8px",color:"var(--text-secondary)"}},f.unit),
+                    e('td',{style:{padding:"6px 8px"}},e('input',{type:"number",value:f.low,onChange:ev=>updF(f.id,'low',ev.target.value),style:{...C.inpSm,width:"72px"}})),
+                    e('td',{style:{padding:"6px 8px"}},e('input',{type:"number",value:f.high,onChange:ev=>updF(f.id,'high',ev.target.value),style:{...C.inpSm,width:"72px"}})),
+                    e('td',{style:{padding:"6px 8px"}},e('button',{onClick:()=>rmF(f.id),style:C.btnXs},"×"))
+                  )
+                )
+              )
+            )
+          )
+        ),
+        e('div', {style:C.card},
+          e('p', {style:C.ttl}, "Add custom factor"),
+          e('div', {style:{display:"flex",gap:"8px",flexWrap:"wrap",alignItems:"flex-end"}},
+            e('div',{style:{flex:"2",minWidth:"110px"}},e('span',{style:C.lbl},"Name"),e('input',{placeholder:"Factor name",value:nf.name,onChange:ev=>setNf(p=>({...p,name:ev.target.value})),style:C.inp})),
+            e('div',{style:{flex:"1",minWidth:"55px"}},e('span',{style:C.lbl},"Unit"),e('input',{placeholder:"°C",value:nf.unit,onChange:ev=>setNf(p=>({...p,unit:ev.target.value})),style:C.inp})),
+            e('div',{style:{width:"72px"}},e('span',{style:C.lbl},"Low"),e('input',{type:"number",placeholder:"0",value:nf.low,onChange:ev=>setNf(p=>({...p,low:ev.target.value})),style:C.inp})),
+            e('div',{style:{width:"72px"}},e('span',{style:C.lbl},"High"),e('input',{type:"number",placeholder:"100",value:nf.high,onChange:ev=>setNf(p=>({...p,high:ev.target.value})),style:C.inp})),
+            e('button',{style:{...C.btnP,marginBottom:"0"},onClick:addCF},"Add")
+          )
+        )
+      ),
+
+      step === 3 && e('div', null,
+        e('div', {style:C.card},
+          e('p', {style:C.ttl}, "Quality responses to measure"),
+          e('div', null,
+            RLIB.map((r,i) => {
+              const found = resps.find(x => x.name === r.name);
+              return e('span', {key:i, style:C.tag(!!found), onClick:()=>found ? rmR(found.id) : addR(r)}, `${r.name} ${r.goal==='minimize'?'↓':'↑'}`);
+            })
+          )
+        ),
+        resps.length > 0 && e('div', {style:C.card},
+          e('p', {style:C.ttl}, `${resps.length} response${resps.length>1?'s':''} selected`),
+          resps.map(r => e('div', {key:r.id, style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"0.5px solid var(--border-light)"}},
+            e('div', null, e('span',{style:{fontSize:"14px"}},r.name), e('span',{style:{fontSize:"12px",color:"var(--text-secondary)",marginLeft:"8px"}},'('+r.unit+')')),
+            e('div', {style:{display:"flex",gap:"8px",alignItems:"center"}},
+              e('span', {style:{fontSize:"12px",color:r.goal==='maximize'?"var(--success)":"var(--danger)"}}, r.goal==='maximize'?'↑ maximize':'↓ minimize'),
+              e('button', {onClick:()=>rmR(r.id),style:C.btnXs}, "×")
+            )
+          ))
+        ),
+        e('div', {style:C.card},
+          e('p', {style:C.ttl}, "Add custom response"),
+          e('div', {style:{display:"flex",gap:"8px",flexWrap:"wrap",alignItems:"flex-end"}},
+            e('div',{style:{flex:"2",minWidth:"110px"}},e('span',{style:C.lbl},"Name"),e('input',{placeholder:"Response name",value:nr.name,onChange:ev=>setNr(p=>({...p,name:ev.target.value})),style:C.inp})),
+            e('div',{style:{flex:"1",minWidth:"55px"}},e('span',{style:C.lbl},"Unit"),e('input',{placeholder:"MPa",value:nr.unit,onChange:ev=>setNr(p=>({...p,unit:ev.target.value})),style:C.inp})),
+            e('div',null,e('span',{style:C.lbl},"Goal"),
+              e('select',{value:nr.goal,onChange:ev=>setNr(p=>({...p,goal:ev.target.value})),style:C.inp},
+                e('option',{value:"minimize"},"Minimize"),e('option',{value:"maximize"},"Maximize"),e('option',{value:"target"},"Target")
+              )
+            ),
+            e('button',{style:C.btnP,onClick:addCR},"Add")
+          )
+        )
+      ),
+
+      step === 4 && e('div', null,
+        e('p', {style:{...C.ttl,marginBottom:'4px'}}, 'Select experiment design model'),
+        e('p', {style:{fontSize:'13px',color:'var(--text-secondary)',marginBottom:'1rem'}},
+          `${factors.length} factor${factors.length>1?'s':''} · ${obj===OBJ.SCREEN?'screening objective':'optimization objective'}`
+        ),
+        e('div', {style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(210px,1fr))',gap:'0.75rem'}},
+          MODEL_CATALOG.filter(m => m.obj === obj).map(m => {
+            const n = factors.length;
+            const runCount = m.runs(n);
+            const inRange = n >= m.minFactors && n <= m.maxFactors;
+            const isRec = inRange && n >= m.idealMin && n <= m.idealMax;
+            const isSel = selectedModel === m.key;
+            return e('div', {
+              key: m.key,
+              onClick: () => inRange && setSelectedModel(m.key),
+              style: {
+                background:'var(--bg-secondary)', borderRadius:'var(--radius-lg)', padding:'1.1rem',
+                cursor: inRange ? 'pointer' : 'not-allowed',
+                opacity: inRange ? 1 : 0.42,
+                border: isSel ? '2px solid var(--amber-border)' : '0.5px solid var(--border-light)',
+                transition: 'border 0.1s',
+              },
+            },
+              e('div', {style:{display:'flex',gap:'4px',marginBottom:'8px',flexWrap:'wrap',minHeight:'20px'}},
+                isRec && e('span',{style:{fontSize:'10px',padding:'2px 7px',borderRadius:'var(--radius-md)',background:'var(--success-bg)',color:'var(--success)',fontWeight:'600'}},'Recommended'),
+                !inRange && e('span',{style:{fontSize:'10px',padding:'2px 7px',borderRadius:'var(--radius-md)',background:'var(--danger-bg)',color:'var(--danger)'}},`Needs ${m.minFactors}–${m.maxFactors} factors`)
+              ),
+              e('p',{style:{fontWeight:'600',fontSize:'14px',margin:'0 0 4px'}}, m.label),
+              e('span',{style:{fontSize:'11px',background:'var(--bg-tertiary)',border:'0.5px solid var(--border-light)',borderRadius:'var(--radius-md)',padding:'2px 8px',color:'var(--text-secondary)',display:'inline-block',marginBottom:'10px'}}, m.sub),
+              e('div',{style:{marginBottom:'8px'}},
+                e('p',{style:{fontSize:'24px',fontWeight:'600',margin:'0 0 1px',color: isSel?'var(--amber)':'var(--text-primary)'}},
+                  inRange ? `${runCount}` : '—',
+                  e('span',{style:{fontSize:'12px',fontWeight:'400',color:'var(--text-secondary)',marginLeft:'5px'}},'runs')
+                )
+              ),
+              e('p',{style:{fontSize:'12px',color:'var(--text-secondary)',margin:'0 0 10px',lineHeight:'1.5'}}, m.desc),
+              m.pros.map((p,i)=>e('p',{key:i,style:{fontSize:'11px',color:'var(--success)',margin:'1px 0',display:'flex',alignItems:'flex-start',gap:'4px'}},
+                e('i',{className:'ti ti-check',style:{fontSize:'11px',marginTop:'1px',flexShrink:0}}), p
+              )),
+              m.cons.map((c,i)=>e('p',{key:i,style:{fontSize:'11px',color:'var(--warning-text)',margin:'1px 0',display:'flex',alignItems:'flex-start',gap:'4px'}},
+                e('i',{className:'ti ti-alert-triangle',style:{fontSize:'11px',marginTop:'1px',flexShrink:0}}), c
+              ))
+            );
+          })
+        )
+      ),
+
+      step === 5 && design && e('div', null,
+        e('div', {style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:"0.75rem",gap:"8px"}},
+          e('div', null,
+            e('p', {style:{...C.ttl,margin:"0 0 2px"}}, `${design.nm} — ${design.runs} runs`),
+            e('p', {style:{fontSize:"13px",color:"var(--text-secondary)",margin:"0 0 6px"}}, `${pName||pType} · ${factors.length} factors · ${resps.length} response${resps.length>1?'s':''}`),
+            e('div', {style:{display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}},
+              e('span',{style:{fontSize:"12px",color:"var(--text-secondary)"}},'Time/run:'),
+              e('input',{type:"number",min:"1",placeholder:"min",value:timePerRun,onChange:ev=>setTimePerRun(ev.target.value),style:{...C.inpSm,width:"58px"}}),
+              e('span',{style:{fontSize:"12px",color:"var(--text-tertiary)"}},'min'),
+              timePerRun && parseFloat(timePerRun) > 0 && e('span',{style:{fontSize:"12px",color:"var(--amber-text)",fontWeight:"500"}},
+                `→ ${design.runs} × ${timePerRun} min = ${(design.runs * parseFloat(timePerRun) / 60).toFixed(1)} h total`
+              )
+            )
+          ),
+          e('div', {style:{display:"flex",gap:"8px",flexWrap:"wrap"}},
+            e('button', {style:{...C.btnS,fontSize:"12px",padding:"6px 12px"}, onClick:()=>setShowCodes(v=>!v)}, showCodes?"Hide codes":"Show codes"),
+            e('button', {style:{...C.btnS,fontSize:"12px",padding:"6px 12px"}, onClick:exportExcel},
+              e('i',{className:"ti ti-file-spreadsheet",style:{fontSize:"13px",marginRight:"4px"}}), "Excel"
+            ),
+            e('button', {style:{...C.btnP,fontSize:"12px",padding:"6px 14px"}, onClick:copyCSV}, copied?"✓ Copied!":"Copy CSV")
+          )
+        ),
+        e('div', {style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"8px",marginBottom:"0.75rem"}},
+          [{l:"Total runs",v:design.runs},{l:"Factors",v:factors.length},{l:"Responses",v:resps.length},{l:"Type",v:obj===OBJ.SCREEN?'Screening':'RSM'}].map(c =>
+            e('div', {key:c.l, style:{background:"var(--bg-secondary)",borderRadius:"var(--radius-md)",padding:"0.65rem",textAlign:"center"}},
+              e('p',{style:{fontSize:"11px",color:"var(--text-secondary)",margin:"0 0 3px"}},c.l),
+              e('p',{style:{fontSize:"17px",fontWeight:"500",margin:0}},c.v)
+            )
+          )
+        ),
+        doeRec && e('div', {style:{...C.sec,borderLeft:"2px solid var(--amber-border)",marginBottom:"0.75rem"}},
+          e('p', {style:{fontSize:"13px",fontWeight:"500",margin:"0 0 4px"}}, `Design selected: ${doeRec.title}`),
+          e('p', {style:{fontSize:"13px",color:"var(--text-secondary)",margin: doeRec.warn ? "0 0 4px" : 0}}, doeRec.desc),
+          doeRec.warn && e('p', {style:{fontSize:"12px",color:"var(--warning-text)",margin:0}},
+            e('i',{className:"ti ti-alert-triangle",style:{fontSize:"12px",marginRight:"4px"}}), doeRec.warn
+          )
+        ),
+        e('div', {style:{...C.card,padding:0,overflow:"hidden"}},
+          e('div', {style:{overflowX:"auto"}},
+            e('table', {style:{width:"100%",borderCollapse:"collapse",fontSize:"12px"}},
+              e('thead', null,
+                e('tr', {style:{background:"var(--bg-secondary)"}},
+                  e('th', {style:{padding:"9px 10px",textAlign:"center",borderBottom:"0.5px solid var(--border-light)",color:"var(--text-secondary)",fontWeight:"400",minWidth:"36px"}}, "#"),
+                  ...factors.map(f => e('th',{key:f.id,style:{padding:"9px 10px",textAlign:"left",borderBottom:"0.5px solid var(--border-light)",color:"var(--text-secondary)",fontWeight:"400",whiteSpace:"nowrap",minWidth:"85px"}},
+                    f.name, e('br'), e('span',{style:{fontSize:"11px",color:"var(--text-tertiary)"}},f.unit)
+                  )),
+                  ...resps.map(r => e('th',{key:r.id,style:{padding:"9px 10px",textAlign:"left",borderBottom:"0.5px solid var(--border-light)",color:"var(--amber)",fontWeight:"400",whiteSpace:"nowrap",minWidth:"85px"}},
+                    r.name, e('br'), e('span',{style:{fontSize:"11px"}},r.unit)
+                  ))
+                )
+              ),
+              e('tbody', null,
+                design.mat.map((row, ri) =>
+                  e('tr', {key:ri, style:{borderBottom:"0.5px solid var(--border-light)"}},
+                    e('td',{style:{padding:"7px 10px",textAlign:"center",color:"var(--text-tertiary)",fontSize:"11px"}},ri+1),
+                    ...row.map((c,ci) => {
+                      const actual = decode(c, factors[ci].low, factors[ci].high);
+                      const fmt = actual%1===0 ? actual : actual.toFixed(1);
+                      return e('td',{key:ci,style:{padding:"7px 10px",whiteSpace:"nowrap"}},
+                        e('span',{style:{fontWeight:"500",color:c===0?"var(--text-secondary)":c>0?"var(--success)":"var(--danger)"}},fmt),
+                        showCodes && e('span',{style:{fontSize:"10px",color:"var(--text-tertiary)",marginLeft:"4px"}},`(${codeLabel(c)})`)
+                      );
+                    }),
+                    ...resps.map(r => e('td',{key:r.id,style:{padding:"5px 8px"}},
+                      e('input',{type:"number",placeholder:"—",value:rvals[`${ri}_${r.id}`]||"",onChange:ev=>setRvals(p=>({...p,[`${ri}_${r.id}`]:ev.target.value})),style:{...C.inpSm,width:"68px"}})
+                    ))
+                  )
+                )
+              )
+            )
+          )
+        ),
+        e('div', {style:{...C.sec,borderLeft:"2px solid var(--amber-border)",marginTop:"0.75rem"}},
+          e('p', {style:{fontWeight:"500",margin:"0 0 4px",fontSize:"13px"}}, "Next steps"),
+          e('p', {style:{fontSize:"13px",color:"var(--text-secondary)",margin:0}},
+            obj===OBJ.SCREEN
+              ?"Green = high level (+1), red = low level (−1). Run in randomised order. Enter measured results above, then click View Results."
+              :"Three levels: low (−1), centre (0), high (+1). Centre points estimate pure error. Enter measured results above, then click View Results."
+          )
+        )
+      ),
+
+      step === 6 && design && e(ResultsTab, {design, factors, resps, rvals, obj, pName, pType}),
+
+      e('div', {style:{display:"flex",justifyContent:"space-between",marginTop:"1.25rem"}},
+        e('button', {style:{...C.btnS,opacity:step===0?0.4:1}, onClick:()=>step>0&&setStep(s=>s-1), disabled:step===0}, "← Back"),
+        step < 6
+          ? e('button', {style:{...C.btnP,opacity:ok?1:0.4}, onClick:()=>ok&&setStep(s=>s+1), disabled:!ok},
+              step===3 ? "Select model →" : step===4 ? "Generate design →" : step===5 ? "View Results →" : "Next →")
+          : e('button', {style:C.btnS, onClick:reset}, "New design")
+      )
+    );
+  }
+
+  ReactDOM.render(React.createElement(App), document.getElementById('root'));
+  </script>
+</body>
+</html>
