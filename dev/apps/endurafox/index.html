@@ -1,0 +1,1829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>EnduraFOX — S–N Fatigue Analyzer</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#18181B;--panel:#232326;--panel2:#2B2B2F;--plot-bg:#1E1E21;
+  --toolbar:#252529;--border:#3A3A40;--text:#F4F4F5;--text2:#B4B4BC;
+  --text3:#8A8A92;--accent:#FF8C42;--accent-dim:rgba(255,140,66,0.12);
+  --teal:#4DD0E1;--green:#22C55E;--warn:#F59E0B;--error:#EF4444;--info:#60A5FA;
+}
+:root.light-mode{
+  --bg:#FFFFFF;--panel:#F8F8FA;--panel2:#E8E8EC;--plot-bg:#F0F0F2;
+  --toolbar:#F0F0F2;--border:#D1D1D5;--text:#1A1A1E;--text2:#3B3B44;
+  --text3:#57575D;--accent:#FF8C42;--accent-dim:rgba(255,140,66,0.2);
+  --teal:#4DD0E1;--green:#22C55E;--warn:#F59E0B;--error:#EF4444;--info:#60A5FA;
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Inter','Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:13px;line-height:1.5}
+.app{display:flex;flex-direction:column;height:100vh}
+
+/* TOOLBAR */
+.toolbar{height:40px;background:var(--toolbar);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 12px;gap:2px;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px;color:var(--text);letter-spacing:-0.03em;margin-right:12px;text-decoration:none}
+.brand-logo{height:28px;object-fit:contain;flex-shrink:0;opacity:.9}
+.brand-fox{color:var(--accent)}
+.tg{display:flex;align-items:center;gap:1px;padding:0 8px;border-right:1px solid var(--border)}
+.tg:last-child{border:none}
+.tb{display:inline-flex;align-items:center;height:26px;padding:0 9px;background:transparent;border:none;color:var(--text2);font-size:11px;font-family:inherit;cursor:pointer;border-radius:4px;white-space:nowrap;transition:background .15s,color .15s;text-decoration:none}
+.tb:hover{background:var(--panel2);color:var(--text)}
+.tb.primary{color:var(--accent)}
+.tb.primary:hover{background:var(--accent-dim)}
+
+/* WORKSPACE — grid-template-rows:1fr forces the single row to exactly fill
+   the available height, so panels are height-constrained and can scroll */
+.workspace{display:grid;grid-template-columns:272px 1fr 288px;grid-template-rows:1fr;flex:1;min-height:0;overflow:hidden}
+
+/* PANELS */
+.lp{background:var(--panel);border-right:1px solid var(--border);
+    overflow-y:auto;padding:10px 6px 10px 10px;
+    display:flex;flex-direction:column;gap:7px;
+    min-height:0;min-width:0;
+    scrollbar-width:thin;scrollbar-color:#3A3A40 #232326}
+.cp{background:var(--plot-bg);display:flex;flex-direction:column;overflow:hidden;min-height:0;min-width:0}
+.rp{background:var(--panel);border-left:1px solid var(--border);
+    overflow-y:auto;padding:10px 6px 10px 10px;
+    display:flex;flex-direction:column;gap:7px;
+    min-height:0;min-width:0;
+    scrollbar-width:thin;scrollbar-color:#3A3A40 #232326}
+
+/* CARDS */
+.card{background:var(--panel2);border:1px solid var(--border);border-radius:7px;overflow:hidden;flex-shrink:0}
+.ch{padding:7px 11px;border-bottom:1px solid var(--border);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);display:flex;align-items:center;justify-content:space-between}
+.cb{padding:11px}
+
+/* FORM */
+label{display:block;color:var(--text2);font-size:11px;margin-bottom:3px;margin-top:7px}
+label:first-child{margin-top:0}
+select,input[type=text],input[type=number]{width:100%;padding:5px 7px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:5px;font-family:inherit;font-size:11px;outline:none}
+select:focus,input:focus{border-color:var(--accent)}
+input[type=range]{width:100%;accent-color:var(--accent);margin-top:3px}
+.cbg{display:flex;align-items:center;gap:7px;padding:4px 0}
+.cbg input[type=checkbox]{width:13px;height:13px;accent-color:var(--accent);flex-shrink:0;cursor:pointer}
+.cbg label{margin:0;color:var(--text);font-size:11px;cursor:pointer;flex:1}
+.cbg:has(input:disabled){opacity:.45}
+.cbg:has(input:disabled) label{cursor:not-allowed}
+.badge{font-size:9px;padding:2px 5px;border-radius:8px;background:var(--bg);color:var(--text3)}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:7px 12px;border:none;border-radius:6px;font-family:inherit;font-size:12px;font-weight:500;cursor:pointer;transition:background .15s;flex-shrink:0}
+.btn-accent{background:var(--accent);color:#000;width:100%}
+.btn-accent:hover{background:#ff9f5e}
+.btn-ghost{background:var(--bg);color:var(--text2);border:1px solid var(--border);width:100%;margin-top:7px}
+.btn-ghost:hover{color:var(--text);border-color:var(--accent)}
+
+/* UPLOAD */
+.upz{border:2px dashed var(--border);border-radius:6px;padding:14px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s}
+.upz:hover,.upz.over{border-color:var(--accent);background:var(--accent-dim)}
+.upz .t1{color:var(--text2);font-size:11px;margin-bottom:3px}
+.upz .t2{color:var(--text3);font-size:10px}
+
+/* TABS */
+.tabbar{display:flex;border-bottom:1px solid var(--border);padding:0 14px;background:var(--panel);flex-shrink:0}
+.tab{padding:7px 12px;font-size:11px;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s}
+.tab:hover{color:var(--text2)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.plotwrap{flex:1;overflow:hidden;position:relative}
+.plotwrap>div{position:absolute;inset:0}
+
+/* STATS */
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.sbox{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 9px}
+.slbl{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px}
+.sval{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:500;margin-top:2px;color:var(--text)}
+.sval.ac{color:var(--accent)}.sval.gd{color:var(--green)}.sval.wn{color:var(--warn)}
+
+/* EQUATION */
+.eq{font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:9px 11px;color:var(--accent);margin-bottom:7px;word-break:break-all}
+.eqp{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3);line-height:1.9;white-space:pre}
+
+/* SUGGESTIONS */
+.sug{display:flex;align-items:flex-start;gap:7px;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;margin-bottom:5px;font-size:11px;color:var(--text2);line-height:1.45}
+.sug.info{border-left:3px solid var(--info)}.sug.warn{border-left:3px solid var(--warn)}
+.sug.good{border-left:3px solid var(--green)}.sug.err{border-left:3px solid var(--error)}
+.sugico{flex-shrink:0;font-size:13px}
+
+/* MODEL TABLE */
+.mtbl{width:100%;border-collapse:collapse;font-size:11px}
+.mtbl th{text-align:left;padding:5px 8px;color:var(--text3);border-bottom:1px solid var(--border);font-weight:500}
+.mtbl td{padding:5px 8px;border-bottom:1px solid rgba(58,58,64,.4);font-family:'JetBrains Mono',monospace;font-size:10px}
+.mtbl tr.best td{color:var(--accent)}.mtbl tr:hover td{background:var(--panel2)}
+
+/* LOG */
+.logarea{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3);max-height:110px;overflow-y:auto;line-height:1.65}
+.ll{padding:1px 0}.ll.info{color:var(--info)}.ll.ok{color:var(--green)}.ll.warn{color:var(--warn)}.ll.err{color:var(--error)}
+
+/* DATA TABLE */
+.dtw{overflow:auto;height:100%;padding:1px}
+.dtbl{width:100%;border-collapse:collapse;font-size:11px;font-family:'JetBrains Mono',monospace}
+.dtbl th{background:var(--panel);padding:6px 10px;text-align:left;position:sticky;top:0;border-bottom:1px solid var(--border);color:var(--text2);font-family:'Inter',sans-serif;font-size:11px}
+.dtbl td{padding:4px 10px;border-bottom:1px solid rgba(58,58,64,.35)}
+.dtbl tr:hover td{background:var(--panel2)}
+.ro{color:var(--teal)}.fa{color:var(--text)}
+
+/* STATUSBAR */
+.sb{height:23px;background:var(--toolbar);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 12px;gap:14px;font-size:10px;color:var(--text3);flex-shrink:0}
+.sbi{display:flex;align-items:center;gap:4px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--text3)}
+.dot.g{background:var(--green)}.dot.o{background:var(--accent)}.dot.r{background:var(--error)}
+
+/* COL MAP */
+.cmap{display:grid;grid-template-columns:auto 1fr;gap:5px 9px;align-items:center;font-size:11px}
+.cmap .cl{color:var(--text3)}
+.cmap select{margin:0}
+
+/* ADVANCED MODELS TOGGLE */
+.adv-toggle{display:flex;align-items:center;justify-content:space-between;padding:5px 0 4px;cursor:pointer;user-select:none;color:var(--text3);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;border-top:1px solid var(--border);margin-top:6px}
+.adv-toggle:hover{color:var(--text2)}
+.adv-toggle .adv-arrow{font-size:9px;transition:transform .2s}
+.adv-toggle.open .adv-arrow{transform:rotate(90deg)}
+.adv-section{overflow:hidden;max-height:0;transition:max-height .25s ease}
+.adv-section.open{max-height:300px}
+
+/* MISC */
+.hidden{display:none!important}
+pre{white-space:pre-wrap}
+
+/* SCROLLBARS */
+/* Global thin scrollbar for inner areas */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+::-webkit-scrollbar-thumb:hover{background:var(--text3)}
+/* Left & right panel — wider, always-visible track */
+.lp::-webkit-scrollbar,.rp::-webkit-scrollbar{width:7px}
+.lp::-webkit-scrollbar-track,.rp::-webkit-scrollbar-track{background:#232326}
+.lp::-webkit-scrollbar-thumb,.rp::-webkit-scrollbar-thumb{background:#3A3A40;border-radius:4px;border:1px solid #232326}
+.lp::-webkit-scrollbar-thumb:hover,.rp::-webkit-scrollbar-thumb:hover{background:#5A5A62}
+
+/* ── RESPONSIVE ─────────────────────────────────────────────── */
+/* Drawer toggle buttons — hidden on desktop */
+.drw-btn{display:none;height:26px;padding:0 9px;background:var(--panel2);border:1px solid var(--border);color:var(--text2);font-size:11px;font-family:inherit;cursor:pointer;border-radius:4px;white-space:nowrap;transition:background .15s,color .15s}
+.drw-btn:hover{background:var(--border);color:var(--text)}
+.drw-btn.open{color:var(--accent);border-color:var(--accent);background:var(--accent-dim)}
+/* Backdrop overlay for drawers */
+.drw-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:98;backdrop-filter:blur(1px)}
+.drw-backdrop.show{display:block}
+
+@media (max-width:1040px){
+  .workspace{grid-template-columns:230px 1fr 240px}
+}
+
+@media (max-width:820px){
+  /* Allow page to scroll */
+  html,body{overflow:auto;height:auto}
+  .app{height:auto;min-height:100vh}
+
+  /* Toolbar scrolls horizontally — never wraps */
+  .toolbar{overflow-x:auto;height:auto;min-height:40px;flex-wrap:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .toolbar::-webkit-scrollbar{display:none}
+
+  /* Show drawer toggle buttons */
+  .drw-btn{display:inline-flex;align-items:center;gap:4px}
+
+  /* Workspace becomes a single stacked column */
+  .workspace{display:flex;flex-direction:column;overflow:visible;flex:none}
+
+  /* Left panel — collapsible drawer from left */
+  .lp{
+    position:fixed;top:0;bottom:0;left:0;
+    width:min(82vw,320px);
+    z-index:99;
+    transform:translateX(-110%);
+    transition:transform .25s ease;
+    border-right:1px solid var(--border);
+    box-shadow:4px 0 20px rgba(0,0,0,.6);
+    padding-top:50px;
+  }
+  .lp.open{transform:translateX(0)}
+
+  /* Right panel — collapsible drawer from right */
+  .rp{
+    position:fixed;top:0;bottom:0;right:0;
+    width:min(82vw,320px);
+    z-index:99;
+    transform:translateX(110%);
+    transition:transform .25s ease;
+    border-left:1px solid var(--border);
+    box-shadow:-4px 0 20px rgba(0,0,0,.6);
+    padding-top:50px;
+  }
+  .rp.open{transform:translateX(0)}
+
+  /* Center panel fills available height */
+  .cp{height:calc(100vh - 63px);min-height:300px;width:100%}
+
+  /* Status bar stays at bottom */
+  .sb{position:sticky;bottom:0;z-index:10;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
+  .sb::-webkit-scrollbar{display:none}
+}
+
+@media (max-width:480px){
+  .lp,.rp{width:90vw}
+  .brand{font-size:13px}
+  .tg{padding:0 4px}
+  .tb{padding:0 6px;font-size:10px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <img class="brand-logo" src="EnduraFOX_log.png" alt="EnduraFOX logo"/>
+  <span class="brand">ENDURA<span class="brand-fox">FOX</span></span>
+  <button class="drw-btn" id="btnLeft" onclick="toggleDrawer('left')">☰ Settings</button>
+  <div class="tg">
+    <button class="tb" onclick="triggerFile()">📂 Open</button>
+    <button class="tb" onclick="loadDemo()">📋 Demo</button>
+  </div>
+  <div class="tg">
+    <button class="tb primary" onclick="runAnalysis()">▶ Run Analysis</button>
+    <button class="tb" onclick="switchTab('compare')">⊞ Compare</button>
+  </div>
+  <div class="tg">
+    <button class="tb" onclick="exportReport()">⬇ Export</button>
+    <button class="tb" onclick="exportPlot()">🖼 Plot PNG</button>
+  </div>
+  <div class="tg">
+    <button class="tb" onclick="clearAll()">✕ Clear</button>
+  </div>
+  <div class="tg" style="margin-left:auto">
+    <button class="tb" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+    <a class="tb" href="EnduraFOX-Help.html" target="_blank" style="text-decoration:none">? Help</a>
+  </div>
+  <button class="drw-btn" id="btnRight" onclick="toggleDrawer('right')">Results ☰</button>
+</div>
+
+<!-- Backdrop for mobile drawers -->
+<div class="drw-backdrop" id="drwBackdrop" onclick="closeDrawers()"></div>
+
+<!-- WORKSPACE -->
+<div class="workspace">
+
+  <!-- LEFT PANEL -->
+  <div class="lp">
+
+    <div class="card">
+      <div class="ch">Data Import</div>
+      <div class="cb">
+        <div class="upz" id="upz">
+          <div class="t1">Drop file or click to browse</div>
+          <div class="t2">CSV · TXT · TSV  (auto-detect delimiter)</div>
+        </div>
+        <input type="file" id="fileInput" accept=".csv,.txt,.tsv" style="display:none"/>
+        <div id="parseStatus" style="margin-top:7px;font-size:10px;color:var(--text3)"></div>
+      </div>
+    </div>
+
+    <div class="card hidden" id="colMapCard">
+      <div class="ch">Column Mapping <span style="color:var(--accent);cursor:pointer" onclick="autoDetect()">↺ auto</span></div>
+      <div class="cb">
+        <div class="cmap">
+          <span class="cl">Stress S</span><select id="colS"></select>
+          <span class="cl">Cycles N</span><select id="colN"></select>
+          <span class="cl">Runout</span><select id="colR"><option value="-1">— none / auto —</option></select>
+        </div>
+        <button class="btn btn-ghost" onclick="applyMapping()">Apply Mapping</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ch">Material & Setup</div>
+      <div class="cb">
+        <label>Material</label>
+        <select id="material" onchange="debouncedRun()">
+          <option value="steel">Steel</option>
+          <option value="cast_iron" selected>Cast Iron (GJS / GJV)</option>
+          <option value="aluminum">Aluminum</option>
+          <option value="magnesium">Magnesium</option>
+          <option value="titanium">Titanium</option>
+          <option value="weld">Welded Structure</option>
+          <option value="composite">Composite</option>
+        </select>
+        <label>Stress Ratio R</label>
+        <select id="stressR" onchange="debouncedRun()">
+          <option value="-1" selected>R = −1 (fully reversed)</option>
+          <option value="0.1">R = 0.1</option>
+          <option value="0">R = 0 (zero-to-tension)</option>
+          <option value="0.5">R = 0.5</option>
+        </select>
+        <label>Confidence Level: <span id="confLbl">95%</span></label>
+        <input type="range" id="conf" min="50" max="99" value="95"
+               oninput="document.getElementById('confLbl').textContent=this.value+'%';debouncedRun()"/>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ch">Fatigue Models</div>
+      <div class="cb">
+        <div class="cbg"><input type="checkbox" id="m_bq" disabled onchange="debouncedRun()"/><label for="m_bq">Basquin — Least Squares</label><span class="badge">LS</span></div>
+        <div class="cbg"><input type="checkbox" id="m_mle" disabled onchange="debouncedRun()"/><label for="m_mle">Basquin — MLE (censored)</label><span class="badge">MLE</span></div>
+        <div class="cbg"><input type="checkbox" id="m_bi" disabled onchange="debouncedRun()"/><label for="m_bi">Bilinear (knee)</label><span class="badge">2-slope</span></div>
+        <div class="cbg"><input type="checkbox" id="m_str" disabled onchange="debouncedRun()"/><label for="m_str">Stromeyer (endurance)</label><span class="badge">Sₑ</span></div>
+        <div class="cbg"><input type="checkbox" id="m_ln" disabled onchange="debouncedRun()"/><label for="m_ln">Log-Normal P-curves</label><span class="badge">P10/90</span></div>
+
+        <div class="adv-toggle" id="advToggle" onclick="toggleAdvModels()">
+          <span>Advanced Models</span>
+          <span class="adv-arrow">▶</span>
+        </div>
+        <div class="adv-section" id="advSection">
+          <div class="cbg"><input type="checkbox" id="m_nth_ls" disabled onchange="updateNthNRow();debouncedRun()"/><label for="m_nth_ls">nth-Root — Least Squares</label><span class="badge">LS</span></div>
+          <div class="cbg"><input type="checkbox" id="m_nth_mle" disabled onchange="updateNthNRow();debouncedRun()"/><label for="m_nth_mle">nth-Root — MLE (censored)</label><span class="badge">MLE</span></div>
+          <div id="nthNRow" class="hidden" style="margin:2px 0 6px 19px">
+            <label style="font-size:10px;color:var(--text3)">n value (Wöhler slope)</label>
+            <select id="nth_n" onchange="debouncedRun()" style="width:100%;margin-top:3px">
+              <option value="0">Auto (optimised)</option>
+              <option value="3">n = 3</option>
+              <option value="4">n = 4</option>
+              <option value="5">n = 5</option>
+              <option value="6">n = 6</option>
+              <option value="8">n = 8</option>
+              <option value="10">n = 10</option>
+            </select>
+          </div>
+          <div class="cbg"><input type="checkbox" id="m_kv" disabled onchange="debouncedRun()"/><label for="m_kv">Kohout-Věchet</label><span class="badge">4P wide</span></div>
+          <div class="cbg"><input type="checkbox" id="m_rc" disabled onchange="updateNcRow();debouncedRun()"/><label for="m_rc">Cardano's (LS)</label><span class="badge">CD</span></div>
+          <div class="cbg"><input type="checkbox" id="m_rcmle" disabled onchange="updateNcRow();debouncedRun()"/><label for="m_rcmle">Cardano's (MLE)</label><span class="badge">CD MLE</span></div>
+          <div id="ncRow" style="display:none;margin-left:26px;margin-top:5px;align-items:center;gap:6px">
+            <label for="nc_val" style="font-size:12px;color:#94a3b8">Inflection Nc</label>
+            <input type="number" id="nc_val" value="100000" min="1000" step="10000" style="width:110px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:2px 6px;font-size:13px" onchange="debouncedRun()">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ch">Options</div>
+      <div class="cb">
+        <div class="cbg"><input type="checkbox" id="o_ro" checked onchange="debouncedRun()"/><label for="o_ro">Include runouts in MLE</label></div>
+        <div class="cbg"><input type="checkbox" id="o_band" checked onchange="debouncedRun()"/><label for="o_band">Confidence band on best fit</label></div>
+        <div class="cbg"><input type="checkbox" id="o_rel" checked onchange="debouncedRun()"/><label for="o_rel">Reliability curves P10/P50/P90</label></div>
+        <div class="cbg"><input type="checkbox" id="o_log" checked onchange="debouncedRun()"/><label for="o_log">Log scale axes</label></div>
+        <label style="margin-top:9px">X-axis max (cycles)</label>
+        <select id="nmax" onchange="debouncedRun()">
+          <option value="1000000">1M — 10⁶</option>
+          <option value="10000000">10M — 10⁷</option>
+          <option value="100000000" selected>100M — 10⁸</option>
+          <option value="1000000000">1B — 10⁹</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn btn-accent" onclick="runAnalysis()">▶  Run Analysis</button>
+  </div>
+
+  <!-- CENTER PANEL -->
+  <div class="cp">
+    <div class="tabbar">
+      <div class="tab active" onclick="switchTab('sn')">S–N Curve</div>
+      <div class="tab" onclick="switchTab('res')">Residuals</div>
+      <div class="tab" onclick="switchTab('rel')">Reliability</div>
+      <div class="tab" onclick="switchTab('compare')">Model Compare</div>
+      <div class="tab" onclick="switchTab('data')">Data Table</div>
+    </div>
+    <div class="plotwrap">
+      <div id="plt-sn"></div>
+      <div id="plt-res" class="hidden"></div>
+      <div id="plt-rel" class="hidden"></div>
+      <div id="plt-compare" class="hidden" style="padding:14px;overflow:auto;background:var(--plot-bg)"></div>
+      <div id="plt-data" class="dtw hidden"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="rp">
+
+    <div class="card">
+      <div class="ch">Best Fit</div>
+      <div class="cb">
+        <div class="sgrid">
+          <div class="sbox"><div class="slbl">Model</div><div class="sval ac" id="s-model">—</div></div>
+          <div class="sbox"><div class="slbl">R²</div><div class="sval" id="s-r2">—</div></div>
+          <div class="sbox"><div class="slbl">RMSE (MPa)</div><div class="sval" id="s-rmse">—</div></div>
+          <div class="sbox"><div class="slbl">AIC</div><div class="sval" id="s-aic">—</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ch">Fatigue Properties</div>
+      <div class="cb">
+        <div class="sgrid">
+          <div class="sbox"><div class="slbl">Fatigue Limit (MPa)</div><div class="sval" id="s-sl">—</div></div>
+          <div class="sbox"><div class="slbl">Knee N (cycles)</div><div class="sval" id="s-nk">—</div></div>
+          <div class="sbox"><div class="slbl">S at 10⁶ (MPa)</div><div class="sval" id="s-s6">—</div></div>
+          <div class="sbox"><div class="slbl">Scatter T</div><div class="sval" id="s-sc">—</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ch">Active Equation</div>
+      <div class="cb">
+        <div class="eq" id="eq-main">—</div>
+        <div class="eqp" id="eq-params">Run analysis to see parameters</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ch">Analysis Insights</div>
+      <div class="cb" id="sugs">
+        <div class="sug info"><span class="sugico">ℹ</span>Load data and run analysis.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ch">Log</div>
+      <div class="cb"><div class="logarea" id="logarea"></div></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div class="sb">
+  <div class="sbi"><div class="dot" id="sdot"></div><span id="stxt">Ready</span></div>
+  <div class="sbi">Points: <b id="sb-n">0</b></div>
+  <div class="sbi">Runouts: <b id="sb-ro">0</b></div>
+  <div class="sbi">Model: <b id="sb-m">—</b></div>
+  <div class="sbi" style="margin-left:auto">EnduraFOX v1.0 — Intelligent S–N Fatigue Analyzer</div>
+</div>
+
+</div><!-- end .app -->
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  EnduraFOX — S–N Fatigue Analysis Engine
+//  Models: Basquin LS, Basquin MLE, nth-Root LS, nth-Root MLE,
+//          Bilinear, Stromeyer, Log-Normal, Kohout-Věchet, Poly LS/MLE
+// ═══════════════════════════════════════════════════════════════
+
+const ST = { raw:[], failures:[], runouts:[], results:{}, best:null, activeTab:'sn', parsedRaw:null };
+
+// ── Theme management ──────────────────────────────────────────
+function getThemeColors(){
+  const root = getComputedStyle(document.documentElement);
+  return {
+    plotBg: root.getPropertyValue('--plot-bg').trim(),
+    text2: root.getPropertyValue('--text2').trim(),
+    text3: root.getPropertyValue('--text3').trim(),
+    border: root.getPropertyValue('--border').trim(),
+  };
+}
+
+function toggleTheme(){
+  const html = document.documentElement;
+  const isLight = html.classList.toggle('light-mode');
+  const theme = isLight ? 'light' : 'dark';
+  localStorage.setItem('endurafox-theme', theme);
+  document.getElementById('themeToggle').textContent = isLight ? '☀' : '🌙';
+  // Re-render plots with new theme
+  if(ST.raw.length){
+    plotSN();
+    if(ST.best){ plotRes(); plotRel(); }
+    switchTab(ST.activeTab);
+  } else {
+    initPlot();
+  }
+}
+
+function loadTheme(){
+  const saved = localStorage.getItem('endurafox-theme') || 'dark';
+  const html = document.documentElement;
+  if(saved === 'light') html.classList.add('light-mode');
+  document.getElementById('themeToggle').textContent = saved === 'light' ? '☀' : '🌙';
+}
+
+// ── Logging ──────────────────────────────────────────────────
+function log(msg, cls=''){
+  const el=document.getElementById('logarea');
+  const d=document.createElement('div');
+  d.className='ll '+(cls||'');
+  d.textContent='['+new Date().toLocaleTimeString()+'] '+msg;
+  el.appendChild(d); el.scrollTop=el.scrollHeight;
+}
+function setStatus(t,c=''){
+  document.getElementById('stxt').textContent=t;
+  document.getElementById('sdot').className='dot'+(c?' '+c:'');
+}
+
+// ── Math utils ───────────────────────────────────────────────
+const phi=x=>Math.exp(-.5*x*x)/Math.sqrt(2*Math.PI);
+
+function Phi(x){
+  const t=1/(1+.2316419*Math.abs(x));
+  const d=.3989423*Math.exp(-x*x/2);
+  const p=d*t*(.3193815+t*(-.3565638+t*(1.7814779+t*(-1.821256+t*1.3302744))));
+  return x>0?1-p:p;
+}
+
+function normQ(p){
+  if(p<=0)return -38;if(p>=1)return 38;if(p===.5)return 0;
+  const a=[2.515517,.802853,.010328],b=[1.432788,.189269,.001308];
+  const s=p<.5?-1:1,pp=p<.5?p:1-p;
+  const t=Math.sqrt(-2*Math.log(pp));
+  return s*(t-(a[0]+t*(a[1]+t*a[2]))/(1+t*(b[0]+t*(b[1]+t*b[2]))));
+}
+
+function linReg(xs,ys){
+  const n=xs.length,sx=xs.reduce((a,b)=>a+b,0),sy=ys.reduce((a,b)=>a+b,0);
+  const sxx=xs.reduce((a,b)=>a+b*b,0),sxy=xs.reduce((s,x,i)=>s+x*ys[i],0);
+  const D=n*sxx-sx*sx;
+  return{slope:(n*sxy-sx*sy)/D,intercept:(sy*(sxx)-sx*(sxy))/D};
+}
+
+function stats(ys,yhat){
+  const n=ys.length,mean=ys.reduce((a,b)=>a+b,0)/n;
+  const SST=ys.reduce((s,y)=>(s+(y-mean)**2),0);
+  const SSR=ys.reduce((s,y,i)=>(s+(y-yhat[i])**2),0);
+  return{R2:1-SSR/SST,RMSE:Math.sqrt(SSR/n),SSR,n};
+}
+
+function gaussLL(residuals,sig){
+  const n=residuals.length;
+  return -n/2*Math.log(2*Math.PI*sig*sig)-residuals.reduce((s,r)=>s+r*r,0)/(2*sig*sig);
+}
+
+function aicbic(ll,k,n){return{AIC:2*k-2*ll,BIC:k*Math.log(n)-2*ll};}
+
+// ── Nelder-Mead optimizer ────────────────────────────────────
+function nm(fn,x0,{maxIter=2000,tol=1e-10}={}){
+  const n=x0.length;
+  let sx=[x0.slice()];
+  for(let i=0;i<n;i++){const xi=x0.slice();xi[i]=xi[i]!==0?xi[i]*1.12:.001;sx.push(xi);}
+  const sc=p=>{try{const v=fn(p);return isFinite(v)?v:1e15}catch{return 1e15}};
+  for(let it=0;it<maxIter;it++){
+    sx.sort((a,b)=>sc(a)-sc(b));
+    const fv=sx.map(sc);
+    if(fv[n]-fv[0]<tol)break;
+    const c=new Array(n).fill(0);
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++)c[j]+=sx[i][j]/n;
+    const xr=c.map((v,j)=>v+(v-sx[n][j]));const fr=sc(xr);
+    if(fr<fv[0]){const xe=c.map((v,j)=>v+2*(xr[j]-v));sx[n]=sc(xe)<fr?xe:xr;}
+    else if(fr<fv[n-1]){sx[n]=xr;}
+    else{
+      const xc=c.map((v,j)=>v+.5*(sx[n][j]-v));
+      if(sc(xc)<fv[n]){sx[n]=xc;}
+      else{const b=sx[0];sx=sx.map(x=>x.map((v,j)=>b[j]+.5*(v-b[j])));}
+    }
+  }
+  sx.sort((a,b)=>sc(a)-sc(b));
+  return{x:sx[0],fval:sc(sx[0])};
+}
+
+// ── Multi-start Nelder-Mead ───────────────────────────────────
+function nmBest(fn,x0List,opts={}){
+  return x0List.reduce((best,x0)=>{
+    try{const r=nm(fn,x0,opts);return(!best||r.fval<best.fval)?r:best;}catch{return best;}
+  },null)||(nm(fn,x0List[0],opts));
+}
+
+// Signed cube root (needed for Cardano formula with negative radicand)
+function cbrt3(x){return x>=0?Math.pow(x,1/3):-Math.pow(-x,1/3);}
+
+
+// ── Multiple linear regression (normal equations, Gauss-Jordan) ─
+function solveLS(X,y){
+  const k=X[0].length;
+  const A=Array.from({length:k},(_,i)=>Array.from({length:k+1},(_,j)=>
+    j<k?X.reduce((s,r)=>s+r[i]*r[j],0):X.reduce((s,r,l)=>s+r[i]*y[l],0)));
+  for(let col=0;col<k;col++){
+    const piv=A[col][col];if(Math.abs(piv)<1e-14)return null;
+    for(let row=0;row<k;row++){
+      if(row===col)continue;
+      const f=A[row][col]/piv;
+      for(let j=col;j<=k;j++)A[row][j]-=f*A[col][j];
+    }
+  }
+  return A.map((row,i)=>row[k]/row[i]);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  FATIGUE MODELS  —  all AIC/R² in log10(S) space for comparability
+//  Exception: Basquin MLE (log10(N) direction — censoring is natural)
+//             Kohout-Věchet (log10(N) direction — model is inverse)
+//  Both are flagged with aic_note in the comparison table.
+// ═══════════════════════════════════════════════════════════════
+
+// ── 1. Basquin Least Squares ──────────────────────────────────
+//  log10(S) = log10(A) + b·log10(N)
+//  Linear regression in log-log space
+//  Strengths: fast, stable, interpretable, no optimiser needed
+//  Weaknesses: no runout handling, no endurance limit, normal errors assumed in log space
+function fitBasquinLS(F){
+  if(F.length<2)return null;
+  const lN=F.map(d=>Math.log10(d.N)),lS=F.map(d=>Math.log10(d.S));
+  const{slope:b,intercept:lA}=linReg(lN,lS);
+  const A=10**lA;
+  const Sh=F.map(d=>A*d.N**b);
+  const st=stats(F.map(d=>d.S),Sh);
+  const res=F.map((d,i)=>Math.log10(d.S)-Math.log10(Sh[i]));
+  const sig=Math.sqrt(res.reduce((s,r)=>s+r*r,0)/res.length);
+  const ll=gaussLL(res,sig);
+  const{AIC,BIC}=aicbic(ll,2,F.length);
+  return{name:'Basquin (LS)',color:'#60A5FA',A,b,sigma:sig,sigma_logS:sig,
+    R2:st.R2,RMSE:st.RMSE,AIC,BIC,
+    equation:`S = ${A.toFixed(1)} · N^(${b.toFixed(4)})`,
+    params:`A = ${A.toFixed(2)} MPa\nb = ${b.toFixed(5)}\nσ_log10(S) = ${sig.toFixed(4)}`,
+    predict:N=>A*N**b,fatigue_limit:null,Nk:null};
+}
+
+// ── 2. Basquin MLE (handles censored runouts) ─────────────────
+//  Model: log10(N)|S ~ Normal(μ(S), σ²)   — N-direction censoring
+//  μ(S) = (log10(S) − log10(A)) / b
+//  Failure:  log-likelihood contribution = log φ(z) − log σ   (density in log10(N))
+//  Runout:   contribution = log(1 − Φ(z))   [specimen survived past N_obs]
+//  Note: AIC is in log10(N) space — not directly comparable to LS models
+function fitBasquinMLE(F,R){
+  const all=[...F.map(d=>({...d,cens:false})),...R.map(d=>({...d,cens:true}))];
+  if(all.length<3)return fitBasquinLS(F);
+  const ls=fitBasquinLS(F)||{A:500,b:-.1,sigma:.3};
+  const negLL=([lA,b,lS])=>{
+    const sig=10**lS;
+    if(sig<=0||10**lA<=0)return 1e15;
+    return -all.reduce((ll,d)=>{
+      const mu=(Math.log10(d.S)-lA)/b;         // predicted log10(N)
+      const z=(Math.log10(d.N)-mu)/sig;
+      // Failure: density in log10(N) space = φ(z)/σ
+      // Runout:  survival probability  = 1 − Φ(z)
+      const p=d.cens?(1-Phi(z)):phi(z)/sig;
+      return ll+Math.log(Math.max(p,1e-15));
+    },0);
+  };
+  const r=nmBest(negLL,[
+    [Math.log10(ls.A),ls.b,Math.log10(ls.sigma)],
+    [Math.log10(ls.A*2),ls.b*.95,Math.log10(ls.sigma*.7)],
+    [Math.log10(ls.A*.5),ls.b*1.05,Math.log10(ls.sigma*1.5)],
+  ]);
+  const[lA,b,lS]=r.x;const A=10**lA,sig=10**lS;
+  const Sh=F.map(d=>A*d.N**b);
+  const logRes=F.map((d,i)=>Math.log10(d.S)-Math.log10(Sh[i]));
+  const sigLogS=Math.sqrt(logRes.reduce((s,v)=>s+v*v,0)/F.length);
+  const st=stats(F.map(d=>Math.log10(d.S)),Sh.map(s=>Math.log10(s)));
+  const RMSE_S=Math.sqrt(F.reduce((s,d,i)=>(s+(d.S-Sh[i])**2),0)/F.length);
+  const{AIC,BIC}=aicbic(-r.fval,3,all.length);
+  return{name:'Basquin (MLE)',color:'#A78BFA',A,b,sigma:sig,sigma_logS:sigLogS,
+    R2:st.R2,RMSE:RMSE_S,AIC,BIC,aic_note:'log(N)',
+    equation:`S = ${A.toFixed(1)} · N^(${b.toFixed(4)})  [MLE, σ_N=${sig.toFixed(3)}]`,
+    params:`A = ${A.toFixed(2)} MPa\nb = ${b.toFixed(5)}\nσ_log10(N) = ${sig.toFixed(4)}\nσ_log10(S) = ${sigLogS.toFixed(4)}`,
+    predict:N=>A*N**b,fatigue_limit:null,Nk:null};
+}
+
+// ── 3a. nth-Root Least Squares ────────────────────────────────
+//  S = a · N^(-1/n) + Se   residuals in log10(S) space
+//  nFixed=0 → auto-optimise n;  nFixed>0 → fix n to that value
+function fitNthRootLS(F){
+  if(F.length<3)return null;
+  const nFixed=+document.getElementById('nth_n').value||0;
+  const ls=fitBasquinLS(F)||{A:500,b:-.1};
+  const Smin=Math.min(...F.map(d=>d.S));
+  const Sg=Smin*.35;
+  let a,n,Se,kp;
+  if(nFixed>0){
+    kp=2;
+    const fn=([a,Se])=>{
+      if(a<=0||Se<0||Se>=Smin)return 1e15;
+      const Sh=F.map(d=>a*d.N**(-1/nFixed)+Se);
+      if(Sh.some(s=>s<=0||!isFinite(s)))return 1e15;
+      return F.reduce((s,d,i)=>(s+(Math.log10(d.S)-Math.log10(Sh[i]))**2),0);
+    };
+    const r=nmBest(fn,[
+      [Math.abs(ls.A)*8,Sg],[Math.abs(ls.A)*3,Sg*.5],[Math.abs(ls.A)*15,Sg*1.4],
+    ]);
+    [a,Se]=r.x;n=nFixed;
+  }else{
+    kp=3;
+    const fn=([a,n,Se])=>{
+      if(a<=0||n<=.5||n>300||Se<0||Se>=Smin)return 1e15;
+      const Sh=F.map(d=>a*d.N**(-1/n)+Se);
+      if(Sh.some(s=>s<=0||!isFinite(s)))return 1e15;
+      return F.reduce((s,d,i)=>(s+(Math.log10(d.S)-Math.log10(Sh[i]))**2),0);
+    };
+    const r=nmBest(fn,[
+      [Math.abs(ls.A)*8,6,Sg],[Math.abs(ls.A)*3,4,Sg*.5],
+      [Math.abs(ls.A)*15,10,Sg*1.4],[Math.abs(ls.A)*2,3,Sg*.15],[Math.abs(ls.A)*5,8,Sg*.8],
+    ]);
+    [a,n,Se]=r.x;
+  }
+  const Sh=F.map(d=>Math.max(a*d.N**(-1/n)+Se,Se+1e-6));
+  const logRes=F.map((d,i)=>Math.log10(d.S)-Math.log10(Sh[i]));
+  const sig=Math.sqrt(logRes.reduce((s,v)=>s+v*v,0)/F.length);
+  const st=stats(F.map(d=>Math.log10(d.S)),Sh.map(s=>Math.log10(s)));
+  const RMSE_S=Math.sqrt(F.reduce((s,d,i)=>(s+(d.S-Sh[i])**2),0)/F.length);
+  const{AIC,BIC}=aicbic(gaussLL(logRes,sig),kp,F.length);
+  const nLbl=nFixed>0?`${nFixed} (fixed)`:n.toFixed(3);
+  return{name:'nth-Root (LS)',color:'#FF8C42',a,n,Se,sigma:sig,sigma_logS:sig,
+    R2:st.R2,RMSE:RMSE_S,AIC,BIC,fatigue_limit:Se>1?Se:null,Nk:null,
+    equation:`S = ${a.toFixed(2)} · N^(-1/${n.toFixed(2)}) + ${Se.toFixed(2)}`,
+    params:`a  = ${a.toFixed(2)} MPa\nn  = ${nLbl}\nSe = ${Se.toFixed(2)} MPa\nσ_log10(S) = ${sig.toFixed(4)}`,
+    predict:N=>Math.max(a*N**(-1/n)+Se,Se)};
+}
+
+// ── 3b. nth-Root MLE (censored runouts) ──────────────────────
+//  log10(N)|S ~ Normal(log10(N_pred), σ_N²)
+//  N_pred(S) = ((S − Se)/a)^(−n)
+//  Failure: φ(z)/σ_N   Runout: 1−Φ(z)
+function fitNthRootMLE(F,R){
+  const all=[...F.map(d=>({...d,cens:false})),...R.map(d=>({...d,cens:true}))];
+  if(F.length<3)return null;
+  const nFixed=+document.getElementById('nth_n').value||0;
+  const ls=fitBasquinLS(F)||{A:500,b:-.1};
+  const Smin=Math.min(...F.map(d=>d.S));
+  const Sg=Smin*.35;
+  // NLS warm-up
+  const nlsFn=([a,n,Se])=>{
+    if(a<=0||n<=.5||n>300||Se<0||Se>=Smin)return 1e15;
+    const Sh=F.map(d=>a*d.N**(-1/n)+Se);
+    if(Sh.some(s=>s<=0||!isFinite(s)))return 1e15;
+    return F.reduce((s,d,i)=>(s+(Math.log10(d.S)-Math.log10(Sh[i]))**2),0);
+  };
+  const nls=nmBest(nlsFn,[[Math.abs(ls.A)*8,6,Sg],[Math.abs(ls.A)*3,4,Sg*.5],[Math.abs(ls.A)*5,8,Sg*.8]]);
+  const[a0,n_init,Se0]=nls.x;
+  const n0=nFixed>0?nFixed:n_init;
+  const negLL=(params)=>{
+    let a,n,Se,sig;
+    if(nFixed>0){[a,Se,sig]=[10**params[0],params[1],10**params[2]];n=nFixed;}
+    else{[a,n,Se,sig]=[10**params[0],params[1],params[2],10**params[3]];}
+    if(a<=0||n<=.5||n>300||Se<0||Se>=Smin||sig<=0)return 1e15;
+    return -all.reduce((ll,d)=>{
+      if(d.cens&&d.S<=Se)return ll;
+      const Seff=d.S-Se;
+      if(Seff<=0)return ll-50;
+      const Npred=(Seff/a)**(-n);
+      if(!isFinite(Npred)||Npred<=0)return ll-50;
+      const z=(Math.log10(d.N)-Math.log10(Npred))/sig;
+      const p=d.cens?(1-Phi(z)):phi(z)/sig;
+      return ll+Math.log(Math.max(p,1e-15));
+    },0);
+  };
+  let r,a,n,Se,sigN,kp;
+  if(nFixed>0){
+    kp=3;
+    r=nmBest(negLL,[
+      [Math.log10(a0),Se0,Math.log10(.3)],
+      [Math.log10(a0*2),Se0*.5,Math.log10(.5)],
+      [Math.log10(a0*.5),Se0*.7,Math.log10(.2)],
+    ]);
+    a=10**r.x[0];Se=r.x[1];sigN=10**r.x[2];n=nFixed;
+  }else{
+    kp=4;
+    r=nmBest(negLL,[
+      [Math.log10(a0),n0,Se0,Math.log10(.3)],
+      [Math.log10(a0*2),n0*.9,Se0*.5,Math.log10(.5)],
+      [Math.log10(a0*.5),n0*1.1,Se0*.7,Math.log10(.2)],
+      [Math.log10(a0*3),n0*1.3,Se0*.3,Math.log10(.4)],
+      [Math.log10(a0),n0*.7,Se0*.15,Math.log10(.35)],
+    ]);
+    a=10**r.x[0];n=r.x[1];Se=r.x[2];sigN=10**r.x[3];
+  }
+  const Sh=F.map(d=>Math.max(a*d.N**(-1/n)+Se,Se+1e-6));
+  const logRes=F.map((d,i)=>Math.log10(d.S)-Math.log10(Sh[i]));
+  const sigS=Math.sqrt(logRes.reduce((s,v)=>s+v*v,0)/F.length);
+  const st=stats(F.map(d=>Math.log10(d.S)),Sh.map(s=>Math.log10(s)));
+  const RMSE_S=Math.sqrt(F.reduce((s,d,i)=>(s+(d.S-Sh[i])**2),0)/F.length);
+  const{AIC,BIC}=aicbic(-r.fval,kp,all.length);
+  const nLbl=nFixed>0?`${nFixed} (fixed)`:n.toFixed(3);
+  return{name:'nth-Root (MLE)',color:'#F97316',a,n,Se,sigma:sigN,sigma_logS:sigS,
+    R2:st.R2,RMSE:RMSE_S,AIC,BIC,aic_note:'log(N)',fatigue_limit:Se>1?Se:null,Nk:null,
+    equation:`S = ${a.toFixed(2)} · N^(-1/${n.toFixed(2)}) + ${Se.toFixed(2)}  [MLE]`,
+    params:`a  = ${a.toFixed(2)} MPa\nn  = ${nLbl}\nSe = ${Se.toFixed(2)} MPa\nσ_log10(N) = ${sigN.toFixed(4)}\nσ_log10(S) = ${sigS.toFixed(4)}`,
+    predict:N=>Math.max(a*N**(-1/n)+Se,Se)};
+}
+
+// ── 4. Bilinear — continuous two-slope model ──────────────────
+//  Left: S = A1·N^b1    Right: S = A2·N^b2   [continuous at Nk]
+//  Continuity: A2 = A1·Nk^(b1-b2) — right slope is 1-parameter fit through knee
+//  SSR minimised in log10(S) space — AIC comparable to Basquin LS
+function fitBilinear(F){
+  if(F.length<5)return null;
+  const srt=F.slice().sort((a,b)=>a.N-b.N);
+  let bestSSR=Infinity,bestRes=null;
+  for(let ki=2;ki<srt.length-2;ki++){
+    const Nk=srt[ki].N,lNk=Math.log10(Nk);
+    const L=F.filter(d=>d.N<=Nk),R=F.filter(d=>d.N>Nk);
+    if(L.length<2||R.length<2)continue;
+    const rL=linReg(L.map(d=>Math.log10(d.N)),L.map(d=>Math.log10(d.S)));
+    const A1=10**rL.intercept,b1=rL.slope;
+    const lSk=rL.intercept+b1*lNk;
+    // Right: forced through knee — 1-parameter regression
+    const xs=R.map(d=>Math.log10(d.N)-lNk);
+    const ys=R.map(d=>Math.log10(d.S)-lSk);
+    const b2=xs.reduce((s,x,i)=>s+x*ys[i],0)/xs.reduce((s,x)=>s+x*x,0);
+    const A2=10**(lSk-b2*lNk);
+    const Sh=F.map(d=>d.N<=Nk?A1*d.N**b1:A2*d.N**b2);
+    const SSR=F.reduce((s,d,i)=>(s+(Math.log10(d.S)-Math.log10(Sh[i]))**2),0);
+    if(SSR<bestSSR){bestSSR=SSR;bestRes={A1,b1,A2,b2,Nk,Sh};}
+  }
+  if(!bestRes)return null;
+  const{A1,b1,A2,b2,Nk,Sh}=bestRes;
+  const logRes=F.map((d,i)=>Math.log10(d.S)-Math.log10(Sh[i]));
+  const sig=Math.sqrt(logRes.reduce((s,v)=>s+v*v,0)/F.length);
+  const st=stats(F.map(d=>Math.log10(d.S)),Sh.map(s=>Math.log10(s)));
+  const RMSE_S=Math.sqrt(F.reduce((s,d,i)=>(s+(d.S-Sh[i])**2),0)/F.length);
+  const{AIC,BIC}=aicbic(gaussLL(logRes,sig),4,F.length);
+  const Sl_est=A2*(1e8)**b2;
+  return{name:'Bilinear',color:'#22C55E',A1,b1,A2,b2,Nk,sigma:sig,sigma_logS:sig,
+    R2:st.R2,RMSE:RMSE_S,AIC,BIC,
+    fatigue_limit:Sl_est>0&&Sl_est<Math.max(...F.map(d=>d.S))?Sl_est:null,Nk,
+    equation:`A₁·N^b₁  ⟶  A₂·N^b₂  [continuous at Nk=${Nk.toExponential(1)}]`,
+    params:`A₁=${A1.toFixed(1)}, b₁=${b1.toFixed(4)}\nA₂=${A2.toFixed(1)}, b₂=${b2.toFixed(4)}\nNk=${Nk.toExponential(2)} (continuous)\nσ_log10(S) = ${sig.toFixed(4)}`,
+    predict:N=>N<=Nk?A1*N**b1:A2*N**b2};
+}
+
+// ── 5. Stromeyer (asymptotic endurance limit) ─────────────────
+//  S = A·N^b + Se   —   Basquin shifted by asymptotic Se
+//  SSR in log10(S) space — AIC comparable to Basquin LS
+//  Multi-start guards against the local minimum near Se ≈ Smin
+function fitStromeyer(F){
+  if(F.length<4)return null;
+  const Smin=Math.min(...F.map(d=>d.S));
+  const ls=fitBasquinLS(F)||{A:500,b:-.1};
+  const fn=([lA,b,Se])=>{
+    if(Se>=Smin*.97||Se<0)return 1e15;
+    const A=10**lA;if(A<=0)return 1e15;
+    const Sh=F.map(d=>A*d.N**b+Se);
+    if(Sh.some(s=>s<=0||!isFinite(s)))return 1e15;
+    return F.reduce((s,d,i)=>(s+(Math.log10(d.S)-Math.log10(Sh[i]))**2),0);
+  };
+  const r=nmBest(fn,[
+    [Math.log10(ls.A),  ls.b,      Smin*.45],
+    [Math.log10(ls.A*2),ls.b*.9,   Smin*.30],
+    [Math.log10(ls.A*.5),ls.b*1.1, Smin*.60],
+    [Math.log10(ls.A),  ls.b*.8,   Smin*.20],
+  ]);
+  const[lA,b,Se]=r.x;const A=10**lA;
+  const Sh=F.map(d=>A*d.N**b+Se);
+  const logRes=F.map((d,i)=>Math.log10(d.S)-Math.log10(Sh[i]));
+  const sig=Math.sqrt(logRes.reduce((s,v)=>s+v*v,0)/F.length);
+  const st=stats(F.map(d=>Math.log10(d.S)),Sh.map(s=>Math.log10(s)));
+  const RMSE_S=Math.sqrt(F.reduce((s,d,i)=>(s+(d.S-Sh[i])**2),0)/F.length);
+  const{AIC,BIC}=aicbic(gaussLL(logRes,sig),3,F.length);
+  return{name:'Stromeyer',color:'#F472B6',A,b,Se,sigma:sig,sigma_logS:sig,
+    R2:st.R2,RMSE:RMSE_S,AIC,BIC,fatigue_limit:Se>0?Se:null,Nk:null,
+    equation:`S = ${A.toFixed(1)} · N^(${b.toFixed(4)}) + ${Se.toFixed(1)}`,
+    params:`A  = ${A.toFixed(2)} MPa\nb  = ${b.toFixed(5)}\nSe = ${Se.toFixed(2)} MPa\nσ_log10(S) = ${sig.toFixed(4)}`,
+    predict:N=>A*N**b+Se};
+}
+
+// ── 6. Log-Normal P-curves ────────────────────────────────────
+//  Correct name: log-normal scatter model (not Weibull)
+//  sigma_logN: scatter of log10(N) residuals from Basquin LS baseline
+//  sigma_logS = sigma_logN * |b|   (propagated to S-axis)
+//  P10/P50/P90 bands account for scatter in the S-direction
+//  Scatter index T = N10/N90 = 10^(2·z_0.9·sigma_logN)
+function fitLogNormal(F){
+  if(F.length<4)return null;
+  const ls=fitBasquinLS(F);if(!ls)return null;
+  const predLogN=F.map(d=>(Math.log10(d.S)-Math.log10(ls.A))/ls.b);
+  const diffLogN=F.map((d,i)=>Math.log10(d.N)-predLogN[i]);
+  const n=diffLogN.length;
+  const meanD=diffLogN.reduce((a,b)=>a+b,0)/n;
+  const sigN=Math.sqrt(diffLogN.reduce((s,x)=>s+(x-meanD)**2,0)/Math.max(n-1,1));
+  const sigS=sigN*Math.abs(ls.b); // propagate to log10(S) axis
+  const T=10**(2*1.2816*sigN);
+  const Sh=F.map(d=>ls.predict(d.N));
+  const logRes=F.map((d,i)=>Math.log10(d.S)-Math.log10(Sh[i]));
+  const st=stats(F.map(d=>Math.log10(d.S)),Sh.map(s=>Math.log10(s)));
+  const RMSE_S=Math.sqrt(F.reduce((s,d,i)=>(s+(d.S-Sh[i])**2),0)/F.length);
+  return{name:'Log-Normal (P-curves)',color:'#4DD0E1',
+    b:ls.b,sigma:sigN,sigma_logS:sigS,scatter:T,
+    R2:st.R2,RMSE:RMSE_S,AIC:ls.AIC+2,BIC:ls.BIC+2,fatigue_limit:null,Nk:null,
+    equation:`Log-normal P-bands on Basquin baseline`,
+    params:`σ_log10(N) = ${sigN.toFixed(4)}\nσ_log10(S) = ${sigS.toFixed(4)}\nT = N₁₀/N₉₀ = ${T.toFixed(2)}\nA=${ls.A.toFixed(1)}, b=${ls.b.toFixed(4)}`,
+    predict:N=>ls.predict(N),
+    predictP:(N,p)=>{
+      // Shift in S-direction: log(S_p) = log(S_P50) + normQ(p)*sigS
+      const logSbase=Math.log10(ls.A)+ls.b*Math.log10(N);
+      return 10**(logSbase+normQ(p)*sigS);
+    }};
+}
+
+// ── 7. Kohout-Věchet (4-parameter, wide-range model) ──────────
+//  log10(N) = a + b1·log10(S) + b2·log10(S − Se)
+//  Se grid-searched; a, b1, b2 solved by linear regression (normal equations)
+//  Captures static strength, LCF slope, and HCF asymptote in one model
+//  Prediction S from N: bisection on the implicit equation
+//  AIC reported in log10(S) space (residuals from inverted prediction)
+function fitKV(F){
+  if(F.length<6)return null;
+  const Smin=Math.min(...F.map(d=>d.S)),Smax=Math.max(...F.map(d=>d.S));
+  const ls=fitBasquinLS(F)||{A:500,b:-.1};
+
+  function kvPredictS(a,b1,b2,Se,N){
+    const target=Math.log10(N);
+    let lo=Se+0.01,hi=Smax*10;
+    for(let i=0;i<120;i++){
+      const mid=(lo+hi)/2;
+      if(mid<=Se+1e-9)return null;
+      const val=a+b1*Math.log10(mid)+b2*Math.log10(mid-Se);
+      if(!isFinite(val))return null;
+      // log10(N) decreases as S increases (fatigue): larger S → smaller N
+      if(val<target)hi=mid; else lo=mid;
+    }
+    return (lo+hi)/2;
+  }
+
+  let bestSSR=Infinity,bestP=null;
+  const SeGrid=[0,.05,.1,.15,.2,.25,.3,.35,.4,.45,.5,.55,.6,.65,.7].map(f=>Smin*f);
+  for(const Se of SeGrid){
+    const valid=F.filter(d=>d.S>Se+1);
+    if(valid.length<4)continue;
+    const X=valid.map(d=>[1,Math.log10(d.S),Math.log10(d.S-Se)]);
+    const y=valid.map(d=>Math.log10(d.N));
+    const beta=solveLS(X,y);
+    if(!beta)continue;
+    const[a,b1,b2]=beta;
+    const Sh=valid.map((_,i)=>kvPredictS(a,b1,b2,Se,valid[i].N));
+    if(Sh.some(s=>!s||!isFinite(s)))continue;
+    const SSR=valid.reduce((s,d,i)=>(s+(Math.log10(d.S)-Math.log10(Sh[i]))**2),0);
+    if(SSR<bestSSR){bestSSR=SSR;bestP={a,b1,b2,Se};}
+  }
+  if(!bestP)return null;
+  const{a,b1,b2,Se}=bestP;
+
+  const Sh=F.map(d=>d.S>Se+0.5?kvPredictS(a,b1,b2,Se,d.N):null);
+  const valid=F.filter((_,i)=>Sh[i]&&isFinite(Sh[i])&&Sh[i]>0);
+  const ShV=valid.map(d=>kvPredictS(a,b1,b2,Se,d.N));
+  const logRes=valid.map((d,i)=>Math.log10(d.S)-Math.log10(ShV[i]));
+  const sig=Math.sqrt(logRes.reduce((s,v)=>s+v*v,0)/Math.max(logRes.length,1));
+  const st=stats(valid.map(d=>Math.log10(d.S)),ShV.map(s=>Math.log10(s)));
+  const RMSE_S=Math.sqrt(valid.reduce((s,d,i)=>(s+(d.S-ShV[i])**2),0)/Math.max(valid.length,1));
+  const{AIC,BIC}=aicbic(gaussLL(logRes,sig),4,valid.length);
+  return{name:'Kohout-Věchet',color:'#FB923C',a,b1,b2,Se,sigma:sig,sigma_logS:sig,
+    R2:st.R2,RMSE:RMSE_S,AIC,BIC,fatigue_limit:Se>0?Se:null,Nk:null,
+    equation:`log(N)=${a.toFixed(2)}+${b1.toFixed(3)}·log(S)+${b2.toFixed(3)}·log(S−${Se.toFixed(1)})`,
+    params:`a   = ${a.toFixed(3)}\nb₁  = ${b1.toFixed(4)}  [log(S) term]\nb₂  = ${b2.toFixed(4)}  [log(S−Sₑ) term]\nSe  = ${Se.toFixed(2)} MPa\nσ_log10(S) = ${sig.toFixed(4)}`,
+    predict:N=>kvPredictS(a,b1,b2,Se,N)||ls.predict(N)};
+}
+
+// ── 8. Cardano's S-N LS ─────────────────────────────────────────
+//  Forward model:  lgN = c − a·(lgS)³ − b·lgS,   a>0, b>0, c free
+//  c is initialized at log₁₀(Nc) from UI; optimizer finds best c.
+//  Predict (exact Cardano inversion):
+//    lgS = ∛(−(lgN−c)/(2a) + √(((lgN−c)/(2a))² + (b/(3a))³))
+//        + ∛(−(lgN−c)/(2a) − √(((lgN−c)/(2a))² + (b/(3a))³))
+function fitRotCubicLS(F){
+  if(F.length<3)return null;
+  const Nc=parseFloat(document.getElementById('nc_val').value)||1e5;
+  const cHint=Math.log10(Nc);
+  const lN=F.map(d=>Math.log10(d.N));
+  const lS=F.map(d=>Math.log10(d.S));
+
+  const cardano=(a,b,c,lNi)=>{
+    const q=(lNi-c)/a, p=b/a;
+    const D=(q/2)**2+(p/3)**3;
+    const sqD=Math.sqrt(Math.max(D,0));
+    return cbrt3(-q/2+sqD)+cbrt3(-q/2-sqD);
+  };
+
+  // OLS warm-start (N-direction): lgN = c − a·(lgS)³ − b·lgS
+  const X=lS.map(ls=>[1,-(ls**3),-ls]);
+  const coef=solveLS(X,lN)||[cHint,0.01,1];
+  const[c0,a0r,b0r]=coef;
+  const la0=Math.log(Math.max(a0r,1e-6));
+  const lb0=Math.log(Math.max(b0r,1e-6));
+
+  const fn=([la,lb,c])=>{
+    const a=Math.exp(la),b=Math.exp(lb);
+    return F.reduce((s,d,i)=>{
+      const pred=cardano(a,b,c,lN[i]);
+      return isFinite(pred)?s+(lS[i]-pred)**2:s+1e6;
+    },0);
+  };
+  const r=nmBest(fn,[
+    [la0,           lb0,          c0],
+    [la0,           lb0,          cHint],
+    [la0-.5,        lb0-.5,       c0],
+    [la0+.3,        lb0+.3,       c0],
+    [Math.log(0.01),Math.log(1.5),cHint],
+  ]);
+  const[la,lb,c]=r.x;
+  const a=Math.exp(la),b=Math.exp(lb);
+  const Ninf=Math.pow(10,c);
+  const predict=N=>{const ls=cardano(a,b,c,Math.log10(N));return isFinite(ls)?10**ls:null;};
+  const Sh=F.map(d=>predict(d.N));
+  if(Sh.some(s=>!s||!isFinite(s)||s<=0))return null;
+  const logRes=F.map((d,i)=>Math.log10(d.S)-Math.log10(Sh[i]));
+  const sig=Math.sqrt(logRes.reduce((s,v)=>s+v*v,0)/F.length);
+  const st=stats(F.map(d=>Math.log10(d.S)),Sh.map(s=>Math.log10(s)));
+  const RMSE_S=Math.sqrt(F.reduce((s,d,i)=>(s+(d.S-Sh[i])**2),0)/F.length);
+  const{AIC,BIC}=aicbic(gaussLL(logRes,sig),3,F.length);
+  return{name:"Cardano's (LS)",color:'#34D399',a,b,c,sigma:sig,sigma_logS:sig,
+    R2:st.R2,RMSE:RMSE_S,AIC,BIC,
+    equation:`lgN = ${c.toFixed(3)} − ${a.toFixed(5)}·(lgS)³ − ${b.toFixed(5)}·lgS`,
+    params:`a    = ${a.toFixed(6)}  [cubic coeff, a>0]\nb    = ${b.toFixed(5)}  [linear coeff, b>0]\nc    = ${c.toFixed(4)}  [lgN at inflection (lgS=0)]\nNinfl = ${Ninf<1e6?(Ninf/1e3).toFixed(1)+'k':(Ninf/1e6).toFixed(2)+'M'}\nσ_log₁₀(S) = ${sig.toFixed(4)}`,
+    predict,fatigue_limit:null,Nk:null};
+}
+
+// ── 9. Cardano's S-N MLE ─────────────────────────────────────────
+//  Forward: lgN = c − a·(lgS)³ − b·lgS,  a>0, b>0, c free
+//  Likelihood: log₁₀(S)|N ~ Normal(cardano(a,b,c,lgN), σ²)
+function fitRotCubicMLE(F,R){
+  const all=[...F.map(d=>({...d,cens:false})),...R.map(d=>({...d,cens:true}))];
+  if(all.length<4)return fitRotCubicLS(F);
+  const Nc=parseFloat(document.getElementById('nc_val').value)||1e5;
+  const cHint=Math.log10(Nc);
+  const lN=F.map(d=>Math.log10(d.N));
+  const lS=F.map(d=>Math.log10(d.S));
+
+  const cardano=(a,b,c,lNi)=>{
+    const q=(lNi-c)/a, p=b/a;
+    const D=(q/2)**2+(p/3)**3;
+    const sqD=Math.sqrt(Math.max(D,0));
+    return cbrt3(-q/2+sqD)+cbrt3(-q/2-sqD);
+  };
+
+  // OLS warm-start (N-direction)
+  const X=lS.map(ls=>[1,-(ls**3),-ls]);
+  const coef=solveLS(X,lN)||[cHint,0.01,1];
+  const[c0,a0r,b0r]=coef;
+  const la0=Math.log(Math.max(a0r,1e-6));
+  const lb0=Math.log(Math.max(b0r,1e-6));
+  const lS0pred=lN.map(lNi=>cardano(Math.exp(la0),Math.exp(lb0),c0,lNi));
+  const sig0=Math.max(Math.sqrt(lS.reduce((s,v,i)=>(s+(v-lS0pred[i])**2),0)/F.length),0.01);
+  const lsig0=Math.log10(sig0);
+
+  const negLL=([la,lb,c,lsig])=>{
+    const a=Math.exp(la),b=Math.exp(lb),sig=10**lsig;
+    if(sig<=0||sig>10)return 1e15;
+    return -all.reduce((ll,d)=>{
+      const mu=cardano(a,b,c,Math.log10(d.N));
+      if(!isFinite(mu))return ll-50;
+      const z=(Math.log10(d.S)-mu)/sig;
+      const p=d.cens?(1-Phi(z)):phi(z)/sig;
+      return ll+Math.log(Math.max(p,1e-15));
+    },0);
+  };
+
+  const r=nmBest(negLL,[
+    [la0,           lb0,          c0,    lsig0],
+    [la0,           lb0,          cHint, lsig0],
+    [la0-.5,        lb0-.5,       c0,    lsig0-.1],
+    [la0+.3,        lb0+.3,       c0,    lsig0+.1],
+    [Math.log(0.01),Math.log(1.5),cHint, lsig0],
+  ],{maxIter:2500});
+
+  const[la,lb,c,lsig]=r.x;const a=Math.exp(la),b=Math.exp(lb),sig=10**lsig;
+  const Ninf=Math.pow(10,c);
+  const predict=N=>{const ls=cardano(a,b,c,Math.log10(N));return isFinite(ls)?10**ls:null;};
+  const Sh=F.map(d=>predict(d.N));
+  if(Sh.some(s=>!s||!isFinite(s)||s<=0))return fitRotCubicLS(F);
+
+  const logRes=F.map((d,i)=>Math.log10(d.S)-Math.log10(Sh[i]));
+  const sigLogS=Math.sqrt(logRes.reduce((s,v)=>s+v*v,0)/F.length);
+  const st=stats(F.map(d=>Math.log10(d.S)),Sh.map(s=>Math.log10(s)));
+  const RMSE_S=Math.sqrt(F.reduce((s,d,i)=>(s+(d.S-Sh[i])**2),0)/F.length);
+  const{AIC,BIC}=aicbic(-r.fval,4,all.length);
+  return{name:"Cardano's (MLE)",color:'#059669',a,b,c,sigma:sig,sigma_logS:sigLogS,
+    R2:st.R2,RMSE:RMSE_S,AIC,BIC,
+    equation:`lgN = ${c.toFixed(3)} − ${a.toFixed(5)}·(lgS)³ − ${b.toFixed(5)}·lgS  [MLE]`,
+    params:`a    = ${a.toFixed(6)}  [cubic coeff, a>0]\nb    = ${b.toFixed(5)}  [linear coeff, b>0]\nc    = ${c.toFixed(4)}  [lgN at inflection (lgS=0)]\nNinfl = ${Ninf<1e6?(Ninf/1e3).toFixed(1)+'k':(Ninf/1e6).toFixed(2)+'M'}\nσ_log₁₀(S) = ${sig.toFixed(4)}`,
+    predict,fatigue_limit:null,Nk:null};
+}
+
+// Show/hide the n-value selector when either nth-Root model is checked
+function updateNthNRow(){
+  const show=document.getElementById('m_nth_ls').checked||document.getElementById('m_nth_mle').checked;
+  document.getElementById('nthNRow').classList.toggle('hidden',!show);
+}
+function updateNcRow(){
+  const show=document.getElementById('m_rc').checked||document.getElementById('m_rcmle').checked;
+  document.getElementById('ncRow').style.display=show?'flex':'none';
+}
+function toggleAdvModels(){
+  const toggle=document.getElementById('advToggle');
+  const section=document.getElementById('advSection');
+  const open=toggle.classList.toggle('open');
+  section.classList.toggle('open',open);
+}
+
+
+function tryVal(fn,x){try{const v=fn(x);return isFinite(v)&&v>0?v:null;}catch{return null;}}
+function fmtN(n){return n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e3?(n/1e3).toFixed(1)+'k':n.toFixed(0);}
+
+// ═══════════════════════════════════════════════════════════════
+//  FILE PARSING
+// ═══════════════════════════════════════════════════════════════
+
+function detectDelim(txt){
+  const s=txt.split('\n').slice(0,6).join('\n');
+  const c={',':(s.match(/,/g)||[]).length,';':(s.match(/;/g)||[]).length,'\t':(s.match(/\t/g)||[]).length};
+  return Object.entries(c).sort((a,b)=>b[1]-a[1])[0][0];
+}
+
+// Normalise a header or result value: lowercase, strip spaces/underscores/hyphens
+function _norm(v){return String(v).toLowerCase().replace(/[\s_\-]/g,'');}
+
+// Known text values that mean "runout / censored / did not break"
+const _RO=new Set(['runout','run','r','s','censored','survived','survive','nobreak','nofracture','nofailure','nocrack','pass','passed','ok','suspend','suspended','alive','infinite','didnotfail','yes','true','1','dnf']);
+// Known text values that mean "failure / fracture / broke"
+const _FR=new Set(['fracture','fractured','failure','fail','failed','break','broke','broken','crack','cracked','f','b','x','no','false','0']);
+
+function parseText(txt){
+  const clean=v=>v.trim().replace(/^["']|["']$/g,''); // strip surrounding quotes
+  const lines=txt.split('\n').map(l=>l.trim()).filter(l=>l);
+  const delim=detectDelim(txt);
+  let headers=[],dataStart=0;
+  for(let i=0;i<Math.min(lines.length,8);i++){
+    const parts=lines[i].split(delim).map(clean);
+    const nums=parts.filter(p=>!isNaN(parseFloat(p))&&p!=='');
+    if(nums.length>=2){dataStart=i;break;}
+    else{headers=parts;dataStart=i+1;}
+  }
+  const rows=[];
+  for(let i=dataStart;i<lines.length;i++){
+    const p=lines[i].split(delim).map(clean);
+    // skip rows where every cell is empty or non-numeric (pure text rows / blank lines)
+    if(p.every(v=>v===''||isNaN(parseFloat(v))))continue;
+    rows.push({raw:p,nums:p.map(v=>parseFloat(v))});
+  }
+  if(!rows.length)return null;
+  const nc=Math.max(...rows.map(r=>r.raw.length));
+
+  // ── 1. Try matching by header name ────────────────────────────
+  let colN=-1,colS=-1,colR=-1;
+  if(headers.length){
+    const hlo=headers.map(_norm);
+    const has=(h,...ws)=>ws.some(w=>h.includes(w));
+    colN=hlo.findIndex(h=>h==='n'||h==='nf'||has(h,'cycle','ncycle','reversals','fatigue','numberofcycles','lifetocycles'));
+    colS=hlo.findIndex(h=>h==='s'||h==='sa'||h==='sr'||has(h,'stress','amplitude','load','strain','mpa','ksi'));
+    colR=hlo.findIndex(h=>has(h,'result','runout','censored','status','fracture','failure','outcome','type','survive','break','pass','fail'));
+  }
+
+  // ── 2. Fall back to column statistics for N and S ─────────────
+  const means=[];
+  for(let c=0;c<nc;c++){
+    const v=rows.map(r=>r.nums[c]).filter(v=>isFinite(v));
+    means.push(v.length?v.reduce((a,b)=>a+b,0)/v.length:0);
+  }
+  if(colN<0) colN=means.indexOf(Math.max(...means));
+  if(colS<0){
+    for(let c=0;c<nc;c++){
+      if(c===colN)continue;
+      if(means[c]>5&&means[c]<5000){colS=c;break;}
+    }
+    if(colS<0)colS=colN===0?1:0;
+  }
+
+  // ── 3. Fall back to column statistics / text scan for R ───────
+  if(colR<0){
+    // 3a. Numeric 0/1 column (original logic)
+    for(let c=0;c<nc;c++){
+      if(c===colN||c===colS)continue;
+      const v=rows.map(r=>r.nums[c]).filter(v=>isFinite(v));
+      const u=[...new Set(v)];
+      if(u.length<=2&&u.every(v=>v===0||v===1)){colR=c;break;}
+    }
+    // 3b. Text column whose values are all recognised runout/fracture words
+    if(colR<0){
+      for(let c=0;c<nc;c++){
+        if(c===colN||c===colS)continue;
+        const vals=rows.map(r=>(r.raw[c]||'').trim()).filter(v=>v);
+        if(!vals.length)continue;
+        const allKnown=vals.every(v=>_RO.has(_norm(v))||_FR.has(_norm(v)));
+        if(allKnown){colR=c;break;}
+      }
+    }
+  }
+
+  if(!headers.length)headers=rows[0].raw.map((_,i)=>`Col ${i+1}`);
+  return{rows,colS,colN,colR,headers};
+}
+
+function isRunout(row,colR){
+  if(colR<0)return false;
+  const v=String(row.raw[colR]||'').trim();
+  if(!isNaN(parseFloat(v)))return parseFloat(v)===1; // numeric: 1 = runout
+  const vn=_norm(v);
+  if(_RO.has(vn))return true;
+  if(_FR.has(vn))return false;
+  return false; // unrecognised text → treat as failure
+}
+
+function buildDataset(rows,colS,colN,colR){
+  return rows.map(r=>({S:r.nums[colS],N:r.nums[colN],runout:isRunout(r,colR)}))
+    .filter(d=>isFinite(d.S)&&isFinite(d.N)&&d.S>0&&d.N>0);
+}
+
+const MODEL_IDS=['m_bq','m_mle','m_nth_ls','m_nth_mle','m_bi','m_str','m_ln','m_kv','m_rc','m_rcmle'];
+
+function applyDataset(data){
+  ST.raw=data;
+  ST.failures=data.filter(d=>!d.runout);
+  ST.runouts=data.filter(d=>d.runout);
+  document.getElementById('sb-n').textContent=data.length;
+  document.getElementById('sb-ro').textContent=ST.runouts.length;
+  document.getElementById('parseStatus').textContent=
+    `✓ ${data.length} points  (${ST.failures.length} failures · ${ST.runouts.length} runouts)`;
+  document.getElementById('parseStatus').style.color='var(--green)';
+  MODEL_IDS.forEach(id=>document.getElementById(id).disabled=false);
+  buildDataTable();
+}
+
+// ── Column selector UI ────────────────────────────────────────
+function populateCols(headers,colS,colN,colR){
+  ['colS','colN'].forEach(id=>{
+    const sel=document.getElementById(id);sel.innerHTML='';
+    headers.forEach((h,i)=>{const o=document.createElement('option');o.value=i;o.textContent=h;sel.appendChild(o);});
+  });
+  const selR=document.getElementById('colR');selR.innerHTML='<option value="-1">— none / auto —</option>';
+  headers.forEach((h,i)=>{const o=document.createElement('option');o.value=i;o.textContent=h;selR.appendChild(o);});
+  document.getElementById('colS').value=colS;
+  document.getElementById('colN').value=colN;
+  document.getElementById('colR').value=colR>=0?colR:-1;
+  document.getElementById('colMapCard').classList.remove('hidden');
+}
+
+function applyMapping(){
+  if(!ST.parsedRaw)return;
+  const cS=+document.getElementById('colS').value;
+  const cN=+document.getElementById('colN').value;
+  const cR=+document.getElementById('colR').value;
+  applyDataset(buildDataset(ST.parsedRaw.rows,cS,cN,cR));
+  log(`Mapping: S=col${cS}, N=col${cN}, runout=col${cR}`,'ok');
+}
+
+function autoDetect(){
+  if(!ST.parsedRaw)return;
+  const p=ST.parsedRaw;
+  document.getElementById('colS').value=p.colS;
+  document.getElementById('colN').value=p.colN;
+  document.getElementById('colR').value=p.colR>=0?p.colR:-1;
+  applyMapping();
+}
+
+// ── File loading ──────────────────────────────────────────────
+function triggerFile(){document.getElementById('fileInput').click();}
+
+document.getElementById('fileInput').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;
+  e.target.value='';
+  const fr=new FileReader();fr.onload=ev=>handleTxt(ev.target.result,f.name);fr.readAsText(f);
+});
+
+const upz=document.getElementById('upz');
+upz.addEventListener('click',triggerFile);
+upz.addEventListener('dragover',e=>{e.preventDefault();upz.classList.add('over');});
+upz.addEventListener('dragleave',()=>upz.classList.remove('over'));
+upz.addEventListener('drop',e=>{
+  e.preventDefault();upz.classList.remove('over');
+  const f=e.dataTransfer.files[0];if(!f)return;
+  const fr=new FileReader();fr.onload=ev=>handleTxt(ev.target.result,f.name);fr.readAsText(f);
+});
+
+function resetResults(){
+  ST.results={};ST.best=null;
+  document.getElementById('sb-m').textContent='—';
+  ['s-model','s-r2','s-rmse','s-aic','s-sl','s-nk','s-s6','s-sc'].forEach(id=>document.getElementById(id).textContent='—');
+  document.getElementById('eq-main').textContent='—';
+  document.getElementById('eq-params').textContent='Run analysis to see parameters';
+  document.getElementById('sugs').innerHTML='<div class="sug info"><span class="sugico">ℹ</span>Load data and run analysis.</div>';
+  document.getElementById('plt-compare').innerHTML='';
+  Plotly.purge('plt-sn');Plotly.purge('plt-res');Plotly.purge('plt-rel');
+  initPlot();
+}
+
+function handleTxt(txt,name){
+  log(`Parsing: ${name}`,'info');
+  const p=parseText(txt);
+  if(!p){log('Parse failed — check delimiter / format','err');return;}
+  resetResults();
+  ST.parsedRaw=p;
+  populateCols(p.headers,p.colS,p.colN,p.colR);
+  applyDataset(buildDataset(p.rows,p.colS,p.colN,p.colR));
+  log(`Loaded ${ST.raw.length} points from ${name}`,'ok');
+}
+
+// ── Demo dataset (GJS-400 cast iron) ─────────────────────────
+function loadDemo(){
+  resetResults();
+  log('Loading GJS-400 cast iron demo dataset','info');
+  const data=[
+    {S:330,N:8000,runout:false},{S:310,N:18000,runout:false},
+    {S:290,N:40000,runout:false},{S:270,N:90000,runout:false},
+    {S:250,N:200000,runout:false},{S:230,N:480000,runout:false},
+    {S:215,N:950000,runout:false},{S:205,N:1900000,runout:false},
+    {S:198,N:3800000,runout:false},{S:193,N:7200000,runout:false},
+    // scatter replicates
+    {S:310,N:22000,runout:false},{S:270,N:110000,runout:false},
+    {S:230,N:560000,runout:false},{S:205,N:2400000,runout:false},
+    {S:215,N:800000,runout:false},
+    // runouts
+    {S:188,N:1e7,runout:true},{S:185,N:1e7,runout:true},
+    {S:182,N:2e7,runout:true},{S:180,N:2e7,runout:true},
+    {S:178,N:5e7,runout:true},
+  ];
+  applyDataset(data);
+  setStatus('Demo loaded','g');
+  log('Demo: 15 failures + 5 runouts (GJS-400, R=-1)','ok');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MAIN ANALYSIS
+// ═══════════════════════════════════════════════════════════════
+function runAnalysis(){
+  if(ST.raw.length===0){
+    loadDemo();
+    log('Demo data loaded — select models above to fit','info');
+    return;
+  }
+  if(ST.failures.length<3){log('Need ≥ 3 failure points','warn');return;}
+  const anyChecked=MODEL_IDS.some(id=>document.getElementById(id).checked);
+  if(!anyChecked){
+    plotSN();// re-draw data only without curves
+    setStatus('Ready');
+    log('Select at least one model to fit','info');
+    return;
+  }
+  setStatus('Analysing…','o');
+  log(`Fitting ${ST.failures.length} failures + ${ST.runouts.length} runouts…`,'info');
+  const F=ST.failures,R=document.getElementById('o_ro').checked?ST.runouts:[];
+  ST.results={};
+  const try_fit=(id,fn)=>{
+    try{const r=fn();if(r){ST.results[r.name]=r;log(`${r.name}: R²=${r.R2.toFixed(3)} AIC=${r.AIC.toFixed(1)}`,'ok');}}
+    catch(e){log(`${id} failed: ${e.message}`,'warn');}
+  };
+  if(document.getElementById('m_bq').checked)   try_fit('Basquin LS',  ()=>fitBasquinLS(F));
+  if(document.getElementById('m_mle').checked)  try_fit('Basquin MLE', ()=>fitBasquinMLE(F,R));
+  if(document.getElementById('m_nth_ls').checked)  try_fit('nth-Root LS',  ()=>fitNthRootLS(F));
+  if(document.getElementById('m_nth_mle').checked) try_fit('nth-Root MLE', ()=>fitNthRootMLE(F,R));
+  if(document.getElementById('m_bi').checked)   try_fit('Bilinear',    ()=>fitBilinear(F));
+  if(document.getElementById('m_str').checked)  try_fit('Stromeyer',   ()=>fitStromeyer(F));
+  if(document.getElementById('m_ln').checked)   try_fit('Log-Normal',  ()=>fitLogNormal(F));
+  if(document.getElementById('m_kv').checked)   try_fit('KV',          ()=>fitKV(F));
+  if(document.getElementById('m_rc').checked)    try_fit('Cardano LS',  ()=>fitRotCubicLS(F));
+  if(document.getElementById('m_rcmle').checked) try_fit('Cardano MLE', ()=>fitRotCubicMLE(F,R));
+
+  const ranked=Object.values(ST.results).filter(r=>isFinite(r.AIC)).sort((a,b)=>a.AIC-b.AIC);
+  ST.best=ranked[0]||Object.values(ST.results)[0];
+
+  if(ST.best){updateRight();genSuggestions();}
+  plotSN();plotRes();plotRel();buildCmpTable();
+  setStatus('Analysis complete','g');
+  log('Done.','ok');
+}
+
+// ─── Update right panel ───────────────────────────────────────
+function updateRight(){
+  const m=ST.best;if(!m)return;
+  document.getElementById('s-model').textContent=m.name;
+  const r2el=document.getElementById('s-r2');
+  r2el.textContent=m.R2.toFixed(4);
+  r2el.className='sval '+(m.R2>.95?'gd':m.R2>.85?'ac':'wn');
+  document.getElementById('s-rmse').textContent=m.RMSE.toFixed(2);
+  document.getElementById('s-aic').textContent=m.AIC.toFixed(1);
+  document.getElementById('eq-main').textContent=m.equation;
+  document.getElementById('eq-params').textContent=m.params;
+  document.getElementById('sb-m').textContent=m.name;
+  document.getElementById('s-sl').textContent=m.fatigue_limit?m.fatigue_limit.toFixed(1)+' MPa':'—';
+  document.getElementById('s-nk').textContent=m.Nk?m.Nk.toExponential(2):'—';
+  try{document.getElementById('s-s6').textContent=m.predict(1e6).toFixed(1)+' MPa';}catch{document.getElementById('s-s6').textContent='—';}
+  const ln=ST.results['Log-Normal (P-curves)'];
+  document.getElementById('s-sc').textContent=ln?ln.scatter.toFixed(1):'—';
+}
+
+// ─── AI Suggestions ──────────────────────────────────────────
+function genSuggestions(){
+  const s=[];const F=ST.failures,R=ST.runouts;
+  const bq=ST.results['Basquin (LS)'],mle=ST.results['Basquin (MLE)'];
+  const nth=ST.results['nth-Root (LS)']||ST.results['nth-Root (MLE)'],str=ST.results['Stromeyer'];
+  const bi=ST.results['Bilinear'],ln=ST.results['Log-Normal (P-curves)'];
+  const kv=ST.results['Kohout-Věchet'];
+  const rc=ST.results["Cardano's (LS)"],rcmle=ST.results["Cardano's (MLE)"];
+  const wb=ln; // alias for scatter section
+  const mat=document.getElementById('material').value;
+
+  // Endurance limit
+  const hasSe=(nth&&nth.Se>5)||(str&&str.Se>5);
+  if(hasSe){
+    const Se=(nth?nth.Se:str.Se).toFixed(1);
+    s.push({t:'good',i:'✓',m:`Endurance limit detected Sₑ ≈ ${Se} MPa. nth-Root and Stromeyer models capture this asymptote.`});
+  }else if(mat==='aluminum'){
+    s.push({t:'warn',i:'⚠',m:'Aluminum alloys have no true fatigue limit. Tests beyond 10⁸ cycles are needed for safe-life design.'});
+  }else if(mat==='steel'&&R.length===0){
+    s.push({t:'warn',i:'⚠',m:'No runouts detected. Steel typically has a fatigue limit — add run-out tests near the expected endurance limit.'});
+  }
+
+  // Runout handling
+  if(R.length>0){
+    s.push({t:'info',i:'ℹ',m:`${R.length} runouts included. MLE correctly treats censored data — prefer Basquin (MLE) over LS for statistical rigour.`});
+    if(mle&&bq&&mle.AIC<bq.AIC-2)
+      s.push({t:'good',i:'★',m:`MLE improves over LS by ΔAIC=${(bq.AIC-mle.AIC).toFixed(1)}. Censored correction is significant.`});
+  }else{
+    s.push({t:'warn',i:'⚠',m:'No runouts. Fatigue limit cannot be estimated reliably. LS and MLE are equivalent without censored observations.'});
+  }
+
+  // Model ranking
+  const ranked=Object.values(ST.results).filter(r=>isFinite(r.AIC)).sort((a,b)=>a.AIC-b.AIC);
+  if(ranked.length>=2){
+    const dA=(ranked[1].AIC-ranked[0].AIC).toFixed(1);
+    const strong=parseFloat(dA)>4;
+    s.push({t:strong?'good':'warn',i:strong?'★':'≈',
+      m:`${ranked[0].name} ${strong?'strongly favoured':'comparable'} over ${ranked[1].name} (ΔAIC=${dA}). ${strong?'Statistically significant.':'Consider model averaging.'}`});
+  }
+
+  // Bilinear improvement
+  if(bi&&bq&&bi.AIC<bq.AIC-3)
+    s.push({t:'info',i:'⊸',m:`Bilinear improves fit by ΔAIC=${(bq.AIC-bi.AIC).toFixed(1)}. Slope change detected — LCF→HCF transition (knee at ${bi.Nk?bi.Nk.toExponential(1):'?'} cycles).`});
+
+  // Kohout-Věchet
+  if(kv&&bq&&kv.AIC<bq.AIC-2)
+    s.push({t:'good',i:'★',m:`Kohout-Věchet (4P) improves fit by ΔAIC=${(bq.AIC-kv.AIC).toFixed(1)}. Wide-range model captures both LCF and HCF behaviour simultaneously.`});
+
+  // MLE AIC note
+  if(mle)
+    s.push({t:'info',i:'ℹ',m:`Basquin MLE AIC is in log₁₀(N) space — not directly comparable to LS model AICs which are in log₁₀(S) space.`});
+
+  // Cardano's model vs Basquin
+  if(rc&&bq){
+    const dA=(bq.AIC-rc.AIC).toFixed(1);
+    if(rc.AIC<bq.AIC-2)
+      s.push({t:'info',i:'⌒',m:`Cardano's model improves over Basquin by ΔAIC=${dA}. The S-N data shows significant curvature beyond a simple power law.`});
+    else
+      s.push({t:'info',i:'⌒',m:`Cardano's model offers no improvement over Basquin (ΔAIC=${dA}). Data is consistent with a straight log–log line.`});
+  }
+
+  // Scatter
+  if(wb){
+    const T=wb.scatter;
+    const lim={steel:8,cast_iron:25,aluminum:15,weld:100,magnesium:20,titanium:10,composite:50};
+    const ex=lim[mat]||20;
+    if(T>ex*1.5) s.push({t:'warn',i:'⚠',m:`Scatter T=${T.toFixed(1)} is high for ${mat.replace('_',' ')} (expected <${ex}). Possible mixed populations, surface variation, or outliers.`});
+    else s.push({t:'good',i:'✓',m:`Scatter T=${T.toFixed(1)} is typical for ${mat.replace('_',' ')}. Data quality appears consistent.`});
+  }
+
+  // R² quality
+  if(ST.best&&ST.best.R2<0.85)
+    s.push({t:'err',i:'✗',m:`R²=${ST.best.R2.toFixed(3)} is low. Check for outliers, mixed test conditions, or try a different model.`});
+
+  // Sample size
+  if(F.length<6)
+    s.push({t:'warn',i:'⚠',m:`Only ${F.length} failure points. Statistical uncertainty is high — AIC comparisons unreliable below 8 failures.`});
+
+  document.getElementById('sugs').innerHTML=s.map(x=>
+    `<div class="sug ${x.t}"><span class="sugico">${x.i}</span>${x.m}</div>`).join('');
+}
+
+// ── Debounced auto-run ────────────────────────────────────────
+// Called by every checkbox / input onchange so the plot refreshes
+// automatically. Skips silently when no data is loaded.
+let _runTimer;
+function debouncedRun(){
+  if(!ST.failures.length)return;
+  clearTimeout(_runTimer);
+  _runTimer=setTimeout(runAnalysis,150);
+}
+
+// ── Wöhler slope helper ───────────────────────────────────────
+// Returns local slope m at N ≈ 100 000 cycles (S^m·N = C convention, m > 0).
+// Uses a symmetric numerical derivative in log–log space so it works for
+// any model including Kohout-Věchet and Cardano's.
+function getM(res){
+  const N0=1e5, f=1.005;
+  if(res.predict){
+    const S1=res.predict(N0/f), S2=res.predict(N0*f);
+    if(S1&&S2&&S1>0&&S2>0&&isFinite(S1)&&isFinite(S2)){
+      const slope=(Math.log10(S2)-Math.log10(S1))/(2*Math.log10(f));
+      if(isFinite(slope)&&Math.abs(slope)>1e-9)return(-1/slope).toFixed(1);
+    }
+  }
+  if(res.b&&isFinite(res.b)&&Math.abs(res.b)>1e-9)return(-1/res.b).toFixed(1);
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PLOTTING
+// ═══════════════════════════════════════════════════════════════
+function getPlotLayout(){
+  const T = getThemeColors();
+  const isLight = T.plotBg === '#F0F0F2';
+  return{paper_bgcolor:T.plotBg,plot_bgcolor:T.plotBg,
+    font:{family:'Inter,sans-serif',color:T.text2,size:11},
+    margin:{l:68,r:24,t:18,b:58},
+    legend:{bgcolor: isLight ? 'rgba(255,255,255,.95)' : 'rgba(30,30,33,.85)', bordercolor:T.border,borderwidth:1,font:{size:10,color:T.text2}}};
+}
+
+function ax(title,type='-'){
+  const T = getThemeColors();
+  return{title:{text:title,font:{color:T.text3,size:11}},type,
+    gridcolor:T.border,linecolor:T.border,tickcolor:T.text3,zerolinecolor:T.border};
+}
+
+function curve(pred,Nmin,Nmax,nPts=120){
+  const lMin=Math.log10(Nmin),lMax=Math.log10(Nmax),Ns=[],Ss=[];
+  for(let i=0;i<=nPts;i++){
+    const N=10**(lMin+(lMax-lMin)*i/nPts);
+    const S=pred(N);
+    if(isFinite(S)&&S>0){Ns.push(N);Ss.push(S);}
+  }
+  return{Ns,Ss};
+}
+
+function hexA(h,a){
+  const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+function plotSN(){
+  const T=getThemeColors();
+  const isLight=T.plotBg==='#F0F0F2';
+  const F=ST.failures,R=ST.runouts;
+  if(!F.length)return;
+  const allN=[...F,...R].map(d=>d.N);
+  const userNmax=+document.getElementById('nmax').value||1e8;
+  const dataNmax=Math.max(...allN);
+  const Nmax=Math.max(userNmax,dataNmax*1.5);
+  const Nmin=Math.min(...allN)*.3;
+  const logScale=document.getElementById('o_log').checked;
+  const axRange=logScale
+    ?[Math.log10(Nmin),Math.log10(userNmax)]
+    :[0,userNmax];
+  const traces=[];
+
+  traces.push({x:F.map(d=>d.N),y:F.map(d=>d.S),mode:'markers',type:'scatter',
+    name:'Failures',marker:{color:isLight?'#1A1A1E':'#F4F4F5',size:8,line:{color:isLight?'#444':'#555',width:.8}}});
+
+  if(R.length)traces.push({x:R.map(d=>d.N),y:R.map(d=>d.S),mode:'markers',type:'scatter',
+    name:'Runouts →',marker:{color:isLight?T.teal:'#4DD0E1',size:10,symbol:'triangle-right',line:{color:isLight?'#0F5F6C':'#2a8a9a',width:.8}}});
+
+  // Fit curves — all solid, each model its own colour
+  // Skip Log-Normal: it only draws P-bands, not a mean line
+  for(const[,m] of Object.entries(ST.results)){
+    if(m.name==='Log-Normal (P-curves)')continue;
+    const{Ns,Ss}=curve(m.predict,Nmin,Nmax);
+    const best=m===ST.best;
+    const mv=getM(m);
+    const label=m.name+(mv?`   m = ${mv}`:'');
+    traces.push({x:Ns,y:Ss,mode:'lines',type:'scatter',name:label,
+      line:{color:m.color,width:best?2.8:1.6,dash:'solid'}});
+  }
+
+  // Confidence band on best fit
+  if(document.getElementById('o_band').checked&&ST.best&&ST.best.sigma_logS){
+    const m=ST.best,conf=+document.getElementById('conf').value/100;
+    const z=Math.abs(normQ(conf));
+    const sigLS=m.sigma_logS;
+    const{Ns,Ss}=curve(m.predict,Nmin,Nmax,80);
+    const Shi=Ss.map(S=>S*10**(z*sigLS));
+    const Slo=Ss.map(S=>S*10**(-z*sigLS));
+    traces.push({x:[...Ns,...Ns.slice().reverse()],y:[...Shi,...Slo.slice().reverse()],
+      fill:'toself',type:'scatter',mode:'none',
+      fillcolor:hexA(m.color,.12),line:{width:0},name:`${Math.round(conf*100)}% CI`});
+  }
+
+  // P-curves from Log-Normal model
+  if(document.getElementById('o_rel').checked&&ST.results['Log-Normal (P-curves)']){
+    const ln=ST.results['Log-Normal (P-curves)'];
+    for(const[p,lbl,dash] of [[.1,'P10 (90% surv.)','dash'],[.9,'P90 (10% surv.)','dot']]){
+      const{Ns,Ss}=curve(N=>ln.predictP(N,p),Nmin,Nmax,80);
+      traces.push({x:Ns,y:Ss,mode:'lines',type:'scatter',name:lbl,
+        line:{color:'#4DD0E1',width:1.2,dash}});
+    }
+  }
+
+  Plotly.react('plt-sn',traces,{...getPlotLayout(),
+    xaxis:{...ax('Number of Cycles  N',logScale?'log':'-'),range:axRange},
+    yaxis:ax('Stress Amplitude  S  (MPa)',logScale?'log':'-')
+  },{responsive:true});
+}
+
+function plotRes(){
+  const T=getThemeColors();
+  const m=ST.best;if(!m||!ST.failures.length)return;
+  const F=ST.failures;
+  const pred=F.map(d=>m.predict(d.N));
+  const relRes=F.map((d,i)=>((d.S-pred[i])/d.S)*100);
+  Plotly.react('plt-res',[
+    {x:pred,y:relRes,mode:'markers',type:'scatter',name:'Rel. Residual (%)',
+      marker:{color:'#FF8C42',size:8,line:{color:'#cc6a28',width:.8}}},
+    {x:[Math.min(...pred)*.9,Math.max(...pred)*1.1],y:[0,0],
+      mode:'lines',type:'scatter',name:'Zero',
+      line:{color:T.border,dash:'dash',width:1}}
+  ],{...getPlotLayout(),xaxis:ax('Predicted S (MPa)'),yaxis:ax('Relative Residual (%)')},{responsive:true});
+}
+
+function plotRel(){
+  const T=getThemeColors();
+  const isLight=T.plotBg==='#F0F0F2';
+  if(!ST.best||!ST.failures.length)return;
+  const F=ST.failures,m=ST.best;
+  const allN=F.map(d=>d.N);
+  const Nmin=Math.min(...allN)*.4,Nmax=Math.max(...allN)*10;
+  const ln=ST.results['Log-Normal (P-curves)'];
+  const traces=[];
+  const COL={.1:'#EF4444',.5:'#FF8C42',.9:'#22C55E'};
+  const LBL={.1:'P10 — 90% survival',.5:'P50 — median',.9:'P90 — 10% survival'};
+  for(const p of [.9,.5,.1]){
+    const pred=ln?ln.predictP.bind(ln):((N,pp)=>{
+      const lS=Math.log10(m.A||1)+(m.b||-.1)*Math.log10(N);
+      return 10**(lS+normQ(pp)*(m.sigma_logS||.3));
+    });
+    const{Ns,Ss}=curve(N=>pred(N,p),Nmin,Nmax);
+    traces.push({x:Ns,y:Ss,mode:'lines',type:'scatter',name:LBL[p],
+      line:{color:COL[p],width:2}});
+  }
+  traces.push({x:F.map(d=>d.N),y:F.map(d=>d.S),mode:'markers',type:'scatter',name:'Data',
+    marker:{color:isLight?'#1A1A1E':'#F4F4F5',size:6}});
+  Plotly.react('plt-rel',traces,{...getPlotLayout(),
+    xaxis:ax('Number of Cycles  N','log'),
+    yaxis:ax('Stress Amplitude  S  (MPa)','log')
+  },{responsive:true});
+}
+
+// ─── Model compare table ──────────────────────────────────────
+function buildCmpTable(){
+  const el=document.getElementById('plt-compare');
+  const rs=Object.values(ST.results);
+  if(!rs.length){el.innerHTML='<p style="color:var(--text3);padding:20px">No results yet.</p>';return;}
+  const ranked=rs.filter(r=>isFinite(r.AIC)).sort((a,b)=>a.AIC-b.AIC);
+  const best=ranked[0];
+  const logNmodels=ranked.filter(r=>r.aic_note==='log(N)').map(r=>r.name);
+  const mixedAIC=logNmodels.length>0&&ranked.length>logNmodels.length;
+  let h=`<table class="mtbl"><thead><tr>
+    <th>Model</th><th>R²</th><th>RMSE</th><th>AIC</th><th>BIC</th><th>ΔAIC</th><th>AIC space</th><th>Sₑ (MPa)</th><th>Knee N</th>
+  </tr></thead><tbody>`;
+  for(const m of ranked){
+    const b=m===best;const dA=(m.AIC-best.AIC).toFixed(2);
+    const aicSpace=m.aic_note==='log(N)'?'log(N)':'log(S)';
+    const aicCol=m.aic_note==='log(N)'?'color:#FACC15':'color:var(--text2)';
+    h+=`<tr class="${b?'best':''}">
+      <td>${b?'★ ':''}${m.name}</td>
+      <td>${m.R2.toFixed(4)}</td><td>${m.RMSE.toFixed(3)}</td>
+      <td>${m.AIC.toFixed(2)}</td><td>${m.BIC.toFixed(2)}</td>
+      <td>${b?'0':'+'+dA}</td>
+      <td style="${aicCol};font-size:10px">${aicSpace}</td>
+      <td>${m.fatigue_limit?m.fatigue_limit.toFixed(1):'—'}</td>
+      <td>${m.Nk?m.Nk.toExponential(1):'—'}</td>
+    </tr>`;
+  }
+  h+=`</tbody></table>`;
+  if(mixedAIC){
+    h+=`<div style="margin-top:10px;padding:10px 12px;background:#451a03;border:1px solid #92400e;border-radius:6px;font-size:11px;color:#FDE68A;line-height:1.7">
+    ⚠ <b>AIC comparison warning:</b> Models marked <span style="color:#FACC15">log(N)</span> compute residuals in log(N) direction (Basquin MLE uses censored likelihood; Kohout-Věchet is parameterised as N=f(S)).
+    Models marked log(S) compute residuals in log(S) direction. AIC values across these two groups are <b>not directly comparable</b>.
+    Compare only within the same AIC space group.
+    </div>`;
+  }
+  h+=`<div style="margin-top:${mixedAIC?8:14}px;padding:11px;background:var(--panel2);border-radius:6px;font-size:11px;color:var(--text2);line-height:1.8">
+    <b style="color:var(--accent)">ΔAIC interpretation:</b><br>
+    &lt; 2 → models essentially equivalent<br>
+    2–4 → weak evidence for lower AIC model<br>
+    &gt; 4 → strong evidence — prefer lower AIC<br>
+    &gt; 10 → higher AIC model is inadequate
+  </div>
+  <div style="margin-top:10px;padding:11px;background:var(--panel2);border-radius:6px;font-size:11px;color:var(--text2);line-height:1.8">
+    <b style="color:var(--accent)">Model assumptions:</b><br>
+    <b>Basquin LS:</b> Linear in log-log, normal errors in log(S), no runout handling<br>
+    <b>Basquin MLE:</b> Log-normal life, censored likelihood for runouts — AIC in log(N)<br>
+    <b>nth-Root LS:</b> S = a·N^(-1/n)+Se — endurance limit, log-S residuals; n fixed or auto<br>
+    <b>nth-Root MLE:</b> Same model, censored-likelihood in log(N) space — handles runouts<br>
+    <b>Bilinear:</b> Two-slope model with continuity constraint at knee Nk<br>
+    <b>Stromeyer:</b> S = A·N^b+Se — asymptotic endurance limit, smooth transition<br>
+    <b>Log-Normal:</b> Log-normal scatter on Basquin baseline — P10/P50/P90 bands<br>
+    <b>Kohout-Věchet:</b> log(N)=a+b₁log(S)+b₂log(S−Se) — 4-parameter, AIC in log(N)
+  </div>`;
+  el.innerHTML=h;
+}
+
+// ─── Data table ───────────────────────────────────────────────
+function buildDataTable(){
+  const el=document.getElementById('plt-data');
+  if(!ST.raw.length){el.innerHTML='<p style="color:var(--text3);padding:20px">No data.</p>';return;}
+  let h=`<table class="dtbl"><thead><tr><th>#</th><th>S (MPa)</th><th>N (cycles)</th><th>Type</th></tr></thead><tbody>`;
+  ST.raw.forEach((d,i)=>{h+=`<tr><td>${i+1}</td><td>${d.S.toFixed(2)}</td><td>${d.N.toExponential(3)}</td>
+    <td class="${d.runout?'ro':'fa'}">${d.runout?'▶ Runout':'✕ Failure'}</td></tr>`;});
+  h+='</tbody></table>';
+  el.innerHTML=h;
+}
+
+// ─── Tab switch ───────────────────────────────────────────────
+function switchTab(tab){
+  ST.activeTab=tab;
+  const TABS=['sn','res','rel','compare','data'];
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',TABS[i]===tab));
+  TABS.forEach(t=>{
+    const el=document.getElementById('plt-'+t);
+    if(el)el.classList.toggle('hidden',t!==tab);
+  });
+  setTimeout(()=>{
+    ['plt-sn','plt-res','plt-rel'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el&&!el.classList.contains('hidden')&&el._fullData)Plotly.Plots.resize(el);
+    });
+  },60);
+}
+
+// ─── Export ───────────────────────────────────────────────────
+function exportReport(){
+  if(!ST.best){log('Run analysis first','warn');return;}
+  const m=ST.best;
+  const lines=[
+    'EnduraFOX — S–N Fatigue Analysis Report',
+    '='.repeat(48),
+    `Date:     ${new Date().toLocaleString()}`,
+    `Material: ${document.getElementById('material').value}`,
+    `R ratio:  ${document.getElementById('stressR').value}`,
+    '',
+    'Dataset','-'.repeat(30),
+    `Failures: ${ST.failures.length}`,
+    `Runouts:  ${ST.runouts.length}`,
+    '',
+    'Best Fit','-'.repeat(30),
+    `Model:  ${m.name}`,
+    `R²:     ${m.R2.toFixed(5)}`,
+    `RMSE:   ${m.RMSE.toFixed(3)} MPa`,
+    `AIC:    ${m.AIC.toFixed(3)}`,
+    `BIC:    ${m.BIC.toFixed(3)}`,
+    '',
+    'Equation:',m.equation,
+    '',
+    'Parameters:',m.params,
+    '',
+    'All Models','-'.repeat(30),
+    ...Object.values(ST.results).sort((a,b)=>a.AIC-b.AIC)
+      .map(r=>`${r.name}: R²=${r.R2.toFixed(4)} RMSE=${r.RMSE.toFixed(3)} AIC=${r.AIC.toFixed(2)} BIC=${r.BIC.toFixed(2)}`),
+    '',
+    'Raw Data','-'.repeat(30),
+    ...ST.raw.map((d,i)=>`${i+1}. S=${d.S} MPa  N=${d.N.toExponential(3)}  ${d.runout?'Runout':'Failure'}`)
+  ];
+  const blob=new Blob([lines.join('\n')],{type:'text/plain'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='EnduraFOX_Report.txt';a.click();
+  log('Report exported','ok');
+}
+
+function exportPlot(){
+  Plotly.downloadImage('plt-sn',{format:'png',width:1400,height:900,filename:'EnduraFOX_SN'});
+}
+
+// ── Mobile drawer helpers ────────────────────────────────────
+function toggleDrawer(side){
+  const lp=document.querySelector('.lp');
+  const rp=document.querySelector('.rp');
+  const backdrop=document.getElementById('drwBackdrop');
+  const btnL=document.getElementById('btnLeft');
+  const btnR=document.getElementById('btnRight');
+  if(side==='left'){
+    const opening=!lp.classList.contains('open');
+    rp.classList.remove('open'); btnR.classList.remove('open');
+    lp.classList.toggle('open',opening); btnL.classList.toggle('open',opening);
+    backdrop.classList.toggle('show',opening);
+  } else {
+    const opening=!rp.classList.contains('open');
+    lp.classList.remove('open'); btnL.classList.remove('open');
+    rp.classList.toggle('open',opening); btnR.classList.toggle('open',opening);
+    backdrop.classList.toggle('show',opening);
+  }
+}
+function closeDrawers(){
+  document.querySelector('.lp').classList.remove('open');
+  document.querySelector('.rp').classList.remove('open');
+  document.getElementById('drwBackdrop').classList.remove('show');
+  document.getElementById('btnLeft').classList.remove('open');
+  document.getElementById('btnRight').classList.remove('open');
+}
+
+function clearAll(){
+  ST.raw=[];ST.failures=[];ST.runouts=[];ST.results={};ST.best=null;
+  document.getElementById('sb-n').textContent='0';
+  document.getElementById('sb-ro').textContent='0';
+  document.getElementById('sb-m').textContent='—';
+  document.getElementById('parseStatus').textContent='';
+  document.getElementById('colMapCard').classList.add('hidden');
+  document.getElementById('sugs').innerHTML='<div class="sug info"><span class="sugico">ℹ</span>Load data and run analysis.</div>';
+  ['s-model','s-r2','s-rmse','s-aic','s-sl','s-nk','s-s6','s-sc'].forEach(id=>document.getElementById(id).textContent='—');
+  document.getElementById('eq-main').textContent='—';
+  document.getElementById('eq-params').textContent='Run analysis to see parameters';
+  Plotly.purge('plt-sn');Plotly.purge('plt-res');Plotly.purge('plt-rel');
+  MODEL_IDS.forEach(id=>{const el=document.getElementById(id);el.checked=false;el.disabled=true;});
+  initPlot();setStatus('Ready');log('Cleared','info');
+}
+
+// ── Startup ───────────────────────────────────────────────────
+function initPlot(){
+  const T=getThemeColors();
+  Plotly.newPlot('plt-sn',[{x:[],y:[],mode:'markers',type:'scatter'}],
+    {...getPlotLayout(),xaxis:ax('Number of Cycles  N','log'),yaxis:ax('Stress Amplitude  S  (MPa)','log'),
+      annotations:[{text:'Load a data file or click Demo',x:.5,y:.5,xref:'paper',yref:'paper',
+        showarrow:false,font:{color:T.text3,size:15}}]
+    },{responsive:true});
+}
+
+loadTheme();
+initPlot();
+log('EnduraFOX ready — load a file or click Demo.','info');
+setStatus('Ready');
+
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawers();});
+window.addEventListener('resize',()=>{if(window.innerWidth>820)closeDrawers();});
+</script>
+</body>
+</html>

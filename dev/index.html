@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+<title>NORFOX — Casting Simulation & MAGMASOFT® Support in the Nordics</title>
+<meta name="description" content="NORFOX helps Nordic foundries and component manufacturers use casting simulation to solve defects, improve processes, and make stronger engineering decisions. Authorized MAGMASOFT® partner for Norway, Sweden, Finland, Denmark, and Iceland." />
+
+<!-- Open Graph / LinkedIn sharing -->
+<meta property="og:type"        content="website" />
+<meta property="og:url"         content="https://norfox.se/" />
+<meta property="og:title"       content="NORFOX — Casting Simulation & MAGMASOFT® Support in the Nordics" />
+<meta property="og:description" content="Simulation-based casting analysis, defect investigation, and process improvement for Nordic foundries and component manufacturers — all grounded in casting simulation results and engineering experience." />
+<meta property="og:image"       content="https://norfox.se/images/norfox-og-image.png" />
+
+<!-- Twitter / X card -->
+<meta name="twitter:card"        content="summary_large_image" />
+<meta name="twitter:title"       content="NORFOX — Nordic Casting Simulation" />
+<meta name="twitter:description" content="Casting simulation and MAGMASOFT® support for foundries and component manufacturers across the Nordics." />
+<meta name="twitter:image"       content="https://norfox.se/images/norfox-og-image.png" />
+
+<!-- Favicon (relative — works at /dev or root) -->
+<link rel="icon" type="image/png" href="images/norfox-favicon.png" />
+<link rel="apple-touch-icon"     href="images/norfox-favicon.png" />
+
+<!-- Keep crawlers out of the private preview -->
+<meta name="robots" content="noindex, nofollow" />
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+<style>
+  :root {
+    --graphite:       #1F2529;
+    --graphite-deep:  #161A1D;
+    --graphite-deeper:#0F1215;
+    --orange:         #F05A1A;
+    --orange-hover:   #FF6B2B;
+    --mid-grey:       #8A9099;
+    --divider-dark:   #363C44;
+    --f-display: "Barlow Condensed", "Arial Black", "Helvetica Neue", Arial, sans-serif;
+    --f-body:    "Inter", "Helvetica Neue", Arial, sans-serif;
+    --f-mono:    "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--graphite-deep); color: #fff; font-family: var(--f-body); -webkit-font-smoothing: antialiased; }
+
+  /* ── Lock screen ─────────────────────────────────────── */
+  #gate[hidden] { display: none; }
+  #gate {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    padding: clamp(20px, 5vw, 48px);
+    background:
+      radial-gradient(120% 90% at 50% -10%, #232a30 0%, var(--graphite-deep) 55%, var(--graphite-deeper) 100%);
+    overflow-y: auto;
+  }
+  #gate .wrap {
+    width: 100%; max-width: 520px;
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    gap: clamp(18px, 3.5vw, 28px);
+    animation: gate-in .5s ease-out both;
+  }
+  @keyframes gate-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+  #gate .logo {
+    background: #fff; border-radius: 12px;
+    padding: clamp(12px, 2.5vw, 18px) clamp(18px, 4vw, 26px);
+    box-shadow: 0 10px 40px rgba(0,0,0,.45);
+  }
+  #gate .logo img { display: block; height: clamp(46px, 9vw, 62px); width: auto; }
+  #gate .kicker {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-size: clamp(11px, 2.5vw, 13px); letter-spacing: .22em; text-transform: uppercase;
+    color: var(--orange); font-weight: 600;
+  }
+  #gate .kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--orange); animation: pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(1.5); } }
+  #gate h1 {
+    margin: 0; font-family: var(--f-display); font-weight: 900; text-transform: uppercase;
+    letter-spacing: .03em; line-height: .95; color: #fff;
+    font-size: clamp(40px, 11vw, 76px);
+  }
+  #gate p.msg {
+    margin: 0; color: #b9c0c7; font-size: clamp(15px, 3.6vw, 18px); line-height: 1.5; max-width: 42ch;
+  }
+  #gate form { width: 100%; display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
+  #gate input {
+    width: 100%; height: clamp(58px, 13vw, 72px);
+    background: #232a30; border: 1.5px solid var(--divider-dark); border-radius: 10px;
+    color: #fff; font-family: var(--f-mono); font-size: clamp(20px, 6vw, 30px);
+    text-align: center; letter-spacing: .55em; text-indent: .55em;
+    outline: none; transition: border-color .2s, box-shadow .2s;
+  }
+  #gate input::placeholder { color: #5a626b; letter-spacing: .2em; text-indent: 0; }
+  #gate input:focus { border-color: var(--orange); box-shadow: 0 0 0 4px rgba(240,90,26,.15); }
+  #gate button {
+    width: 100%; height: clamp(58px, 13vw, 72px); border: none; border-radius: 10px; cursor: pointer;
+    background: var(--orange); color: #fff;
+    font-family: var(--f-display); font-weight: 800; text-transform: uppercase;
+    letter-spacing: .14em; font-size: clamp(15px, 4vw, 19px);
+    transition: background .2s, transform .1s;
+  }
+  #gate button:hover { background: var(--orange-hover); }
+  #gate button:active { transform: scale(.99); }
+  #gate .foot {
+    font-family: var(--f-mono); font-size: clamp(10px, 2.6vw, 12px); letter-spacing: .18em;
+    text-transform: uppercase; color: #5a626b; margin-top: 4px;
+  }
+  #gate.err .wrap { animation: shake .4s; }
+  #gate.err input { border-color: #e23b3b; box-shadow: 0 0 0 4px rgba(226,59,59,.15); }
+  @keyframes shake { 10%,90%{transform:translateX(-2px);} 20%,80%{transform:translateX(4px);} 30%,50%,70%{transform:translateX(-8px);} 40%,60%{transform:translateX(8px);} }
+  #gate .errmsg { color: #ff8a8a; font-size: clamp(12px, 3vw, 14px); min-height: 1.2em; }
+
+  /* ── App loading spinner (after unlock) ──────────────── */
+  #booting { position: fixed; inset: 0; z-index: 9998; display: none; align-items: center; justify-content: center; background: var(--graphite-deep); }
+  #booting.on { display: flex; }
+  #booting .spin { width: 44px; height: 44px; border: 3px solid var(--divider-dark); border-top-color: var(--orange); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+  <!-- Editable defaults read by the React app (tweaks panel) -->
+  <script>
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "showHexPattern": true,
+      "showOctagonWatermark": true,
+      "iconStyle": "solid"
+    }/*EDITMODE-END*/;
+  </script>
+
+  <!-- The one file you edit on GitHub to toggle / change the password -->
+  <script src="site-config.js"></script>
+
+  <!-- React mounts here once unlocked -->
+  <div id="root"></div>
+  <div id="tweaks-root"></div>
+
+  <!-- Instant lock screen (no heavy libraries) -->
+  <div id="gate" hidden>
+    <div class="wrap">
+      <div class="logo"><img src="images/norfox-favicon.png" alt="NORFOX" /></div>
+      <span class="kicker"><span class="dot"></span><span id="g-kicker">UNDER DEVELOPMENT</span></span>
+      <h1 id="g-title">PRIVATE PREVIEW</h1>
+      <p class="msg" id="g-msg">This area is under development. Enter your access code to continue.</p>
+      <form id="g-form" autocomplete="off">
+        <input id="g-input" type="password" inputmode="numeric" placeholder="ACCESS CODE"
+               aria-label="Access code" autocomplete="off" />
+        <div class="errmsg" id="g-err"></div>
+        <button type="submit">Enter</button>
+      </form>
+      <div class="foot" id="g-foot">NORFOX AB · AUTHORIZED ACCESS ONLY</div>
+    </div>
+  </div>
+
+  <!-- App boot overlay -->
+  <div id="booting"><div class="spin"></div></div>
+
+  <!-- ── Gate + lazy app loader ──────────────────────────── -->
+  <script>
+  (function () {
+    var CFG = window.NORFOX_CONFIG || {};
+    var KEY = "norfox-dev-auth";
+
+    function loadScript(src, isModule) {
+      return new Promise(function (res, rej) {
+        var s = document.createElement("script");
+        s.src = src; s.crossOrigin = "anonymous";
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+
+    // Loads React + Babel + the app ONLY after the gate is passed.
+    // This keeps the heavy download off the initial page.
+    var booted = false;
+    function bootApp() {
+      if (booted) return; booted = true;
+      var booting = document.getElementById("booting");
+      if (booting) booting.classList.add("on");
+      loadScript("https://unpkg.com/react@18.3.1/umd/react.production.min.js")
+        .then(function () { return loadScript("https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"); })
+        .then(function () { return loadScript("https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"); })
+        .then(function () {
+          ["tweaks-panel.jsx?v=4", "norfox-app.jsx?v=4"].forEach(function (src) {
+            var s = document.createElement("script");
+            s.type = "text/babel"; s.setAttribute("data-presets", "react"); s.src = src;
+            document.body.appendChild(s);
+          });
+          window.Babel.transformScriptTags();
+          // hide overlay shortly after React mounts
+          setTimeout(function () { if (booting) booting.classList.remove("on"); }, 400);
+        })
+        .catch(function () {
+          if (booting) booting.innerHTML = "<p style='color:#ff8a8a;font-family:sans-serif'>Failed to load. Please refresh.</p>";
+        });
+    }
+
+    var alreadyOk = false;
+    try { alreadyOk = sessionStorage.getItem(KEY) === "ok"; } catch (e) {}
+
+    // No password, or already unlocked this session → straight to the app.
+    if (CFG.passwordEnabled === false || alreadyOk) {
+      bootApp();
+      return;
+    }
+
+    // Otherwise, show the gate.
+    var gate  = document.getElementById("gate");
+    var form  = document.getElementById("g-form");
+    var input = document.getElementById("g-input");
+    var err   = document.getElementById("g-err");
+
+    if (CFG.lockKicker)  document.getElementById("g-kicker").textContent = CFG.lockKicker;
+    if (CFG.lockTitle)   document.getElementById("g-title").textContent  = CFG.lockTitle;
+    if (CFG.lockMessage) document.getElementById("g-msg").textContent    = CFG.lockMessage;
+    if (CFG.lockFooter)  document.getElementById("g-foot").textContent   = CFG.lockFooter;
+
+    gate.hidden = false;
+    setTimeout(function () { input.focus(); }, 100);
+
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var val = (input.value || "").trim();
+      if (val === String(CFG.password)) {
+        try { sessionStorage.setItem(KEY, "ok"); } catch (e2) {}
+        gate.style.transition = "opacity .35s ease";
+        gate.style.opacity = "0";
+        bootApp();
+        setTimeout(function () { gate.remove(); }, 360);
+      } else {
+        err.textContent = "Incorrect code. Please try again.";
+        gate.classList.add("err");
+        input.value = ""; input.focus();
+        setTimeout(function () { gate.classList.remove("err"); }, 450);
+      }
+    });
+  })();
+  </script>
+</body>
+</html>

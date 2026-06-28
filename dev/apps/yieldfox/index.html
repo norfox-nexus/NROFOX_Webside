@@ -1,0 +1,854 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>YieldFOX — Tensile Test Analysis</title>
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --panel: #ffffff;
+    --panel-2: #fafafa;
+    --border: #e4e4e7;
+    --border-strong: #d4d4d8;
+    --text: #18181b;
+    --text-dim: #71717a;
+    --text-faint: #a1a1aa;
+    --accent: #2563eb;
+    --accent-soft: #eff6ff;
+    --grid: #ececef;
+    --curve: #2563eb;
+    --curve-2: #f97316;
+    --danger: #dc2626;
+    --shadow: 0 1px 0 rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.04);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: #e9e9ec; }
+  body {
+    font: 13px/1.45 "Segoe UI", "Inter", system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Window chrome */
+  .win {
+    width: min(1320px, calc(100vw - 24px));
+    height: min(860px, calc(100vh - 24px));
+    margin: 12px auto;
+    background: var(--bg);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+  }
+  .titlebar {
+    height: 40px; background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 10px; gap: 8px;
+    user-select: none;
+  }
+  .titlebar .title { font-size: 12px; color: var(--text-dim); flex: 1; text-align: center; }
+  .titlebar .app-logo {
+    font-weight: 800; font-size: 15px; color: var(--text);
+    letter-spacing: -0.03em; line-height: 1;
+  }
+  .titlebar .app-logo span { color: #f97316; }
+  .titlebar .win-btns { display: flex; gap: 2px; }
+  .titlebar .win-btn { width: 36px; height: 26px; display: grid; place-items: center;
+    color: var(--text-dim); border-radius: 4px; cursor: default; }
+  .titlebar .win-btn:hover { background: #f1f1f4; color: var(--text); }
+  .titlebar .win-btn.close:hover { background: #e81123; color: #fff; }
+
+  /* Menubar */
+  .menubar { height: 28px; background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 4px; gap: 2px;
+    font-size: 12px; position: relative; z-index: 400; }
+  .menubar .m { padding: 4px 10px; border-radius: 4px; cursor: default; position: relative; user-select: none; }
+  .menubar .m:hover, .menubar .m.open { background: var(--accent-soft); color: var(--accent); }
+
+  /* Dropdown menus */
+  .menu-drop {
+    display: none; position: absolute; top: calc(100% + 3px); left: 0;
+    min-width: 200px; background: var(--panel);
+    border: 1px solid var(--border-strong); border-radius: 6px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.14); z-index: 500; padding: 3px 0;
+  }
+  .m.open > .menu-drop { display: block; }
+  .mi {
+    padding: 5px 14px; font-size: 12px; color: var(--text); cursor: default;
+    display: flex; align-items: center; gap: 8px; white-space: nowrap;
+  }
+  .mi:hover { background: var(--accent); color: #fff; }
+  .mi.mi-disabled { opacity: 0.35; pointer-events: none; }
+  .mi-sep { height: 1px; background: var(--border); margin: 3px 6px; }
+  .mi .mi-key { margin-left: auto; font-size: 10px; opacity: 0.55; padding-left: 20px; }
+  .app-root[data-theme="dark"] .menu-drop { box-shadow: 0 8px 28px rgba(0,0,0,0.45); }
+
+  /* Toolbar */
+  .toolbar { background: var(--panel); border-bottom: 1px solid var(--border);
+    padding: 8px 10px; display: flex; align-items: center; gap: 6px; }
+  .tool { display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 6px 10px 4px; border-radius: 6px; border: 1px solid transparent;
+    cursor: pointer; min-width: 64px; color: var(--text); background: transparent;
+    font: inherit; }
+  .tool:hover:not([disabled]) { background: var(--accent-soft); border-color: var(--border); }
+  .tool:active:not([disabled]) { background: #e6efff; }
+  .tool[disabled] { opacity: 0.4; cursor: not-allowed; }
+  .tool .ico { width: 28px; height: 28px; display: grid; place-items: center; color: var(--text); }
+  .tool .ico img { width: 28px; height: 28px; object-fit: contain; }
+  .tool .ico svg { width: 24px; height: 24px; }
+  .tool .lbl { font-size: 11px; color: var(--text-dim); }
+  .tool:hover:not([disabled]) .lbl { color: var(--accent); }
+  .tool-sep { width: 1px; height: 36px; background: var(--border); margin: 0 4px; }
+  .tool.danger:hover { background: #fee2e2; border-color: #fecaca; }
+  .tool.danger:hover .lbl { color: var(--danger); }
+  .tool.primary { background: var(--accent); border-color: var(--accent); }
+  .tool.primary .lbl, .tool.primary .ico { color: #fff; }
+  .tool.primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+  .tool.active { background: var(--curve-2); border-color: var(--curve-2); }
+  .tool.active .lbl, .tool.active .ico { color: #fff; }
+  .tool.active:hover:not([disabled]) { background: #ea6c0d; border-color: #ea6c0d; }
+  .tool.active:hover:not([disabled]) .lbl { color: #fff; }
+
+  /* Body grid */
+  .body { flex: 1; display: grid; grid-template-columns: 280px 1fr 300px;
+    min-height: 0; background: var(--bg); }
+  .col { display: flex; flex-direction: column; min-height: 0; overflow: auto; }
+  .col.left { border-right: 1px solid var(--border); background: var(--panel-2); }
+  .col.right { border-left: 1px solid var(--border); background: var(--panel-2); }
+
+  .panel { padding: 14px; border-bottom: 1px solid var(--border); }
+  .panel:last-child { border-bottom: 0; }
+  .panel h3 { margin: 0 0 10px 0; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); }
+
+  .row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .row label { flex: 1; color: var(--text-dim); font-size: 12px; }
+  .row .unit { color: var(--text-faint); font-size: 11px; width: 28px; }
+  .input { width: 84px; padding: 5px 8px; border: 1px solid var(--border-strong);
+    border-radius: 4px; background: #fff; color: var(--text); font: inherit;
+    text-align: right; outline: none; }
+  .input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .input.text { text-align: left; width: 100%; }
+
+  .radio-group { display: flex; flex-direction: column; gap: 4px; }
+  .radio { display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+    border-radius: 4px; cursor: pointer; font-size: 12px; color: var(--text); }
+  .radio:hover { background: #fff; }
+  .radio input { accent-color: var(--accent); }
+  .radio.selected { background: var(--accent-soft); color: var(--accent); }
+
+  .btn { width: 100%; padding: 7px 10px; border: 1px solid var(--border-strong);
+    background: #fff; color: var(--text); border-radius: 4px; font: inherit;
+    cursor: pointer; text-align: left; display: flex; align-items: center; gap: 8px; }
+  .btn:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff;
+    justify-content: center; }
+  .btn.primary:hover { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+  .btn-stack { display: flex; flex-direction: column; gap: 6px; }
+  .btn .dot { width: 14px; color: var(--text-faint); display: grid; place-items: center; }
+  .btn:hover .dot { color: var(--accent); }
+
+  /* Plot area */
+  .plot-wrap { flex: 1; padding: 14px; display: flex; flex-direction: column; min-height: 0; }
+  .plot-card { flex: 1; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; box-shadow: var(--shadow); display: flex;
+    flex-direction: column; overflow: hidden; min-height: 0; }
+  .plot-header { padding: 10px 14px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .plot-header .sample { font-size: 13px; font-weight: 600; }
+  .plot-header .meta { color: var(--text-dim); font-size: 12px; }
+  .plot-header .spacer { flex: 1; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px;
+    border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+    font-size: 11px; font-weight: 500; }
+  .pill .swatch { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+  .plot-svg-wrap { flex: 1; position: relative; min-height: 0; }
+  .plot-svg { width: 100%; height: 100%; display: block; background: var(--panel); cursor: grab; }
+  .plot-svg.picking, .plot-svg.boxzoom { cursor: crosshair; }
+  .hint-bar { position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    background: var(--accent); color: #fff; padding: 6px 12px; border-radius: 999px;
+    font-size: 12px; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+
+  .axis-bar { border-top: 1px solid var(--border); padding: 8px 14px;
+    display: flex; align-items: center; gap: 14px; background: var(--panel-2);
+    font-size: 12px; color: var(--text-dim); flex-wrap: wrap; }
+  .axis-bar .group { display: flex; align-items: center; gap: 6px; }
+  .axis-bar .input { width: 64px; padding: 3px 6px; }
+  .axis-bar .axis-label { font-weight: 600; color: var(--text); }
+
+  /* Results */
+  .results { display: flex; flex-direction: column; gap: 10px; }
+  .results-sep {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.09em; color: var(--text-faint);
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 0 2px;
+  }
+  .results-sep::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .result.orange { border-color: #f97316; }
+  .result.orange .v { color: #f97316; }
+  .result.purple { border-color: #8b5cf6; }
+  .result.purple .v { color: #8b5cf6; }
+  .result.red { border-color: #ef4444; }
+  .result.red .v { color: #ef4444; }
+  .result .v-sub { font-size: 11px; font-weight: 400; color: var(--text-dim);
+    font-variant-numeric: tabular-nums; margin-top: 1px; }
+  .result { background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 12px; display: flex;
+    flex-direction: column; gap: 2px; }
+  .result .k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-faint); display: flex; align-items: center; gap: 6px; }
+  .result .v { font-size: 20px; font-weight: 600; color: var(--text);
+    font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 6px; }
+  .result .v .u { font-size: 12px; font-weight: 500; color: var(--text-dim); }
+  .result.editable { border-color: var(--accent); }
+  .result input.E-input { font-size: 20px; font-weight: 600; width: 70px;
+    text-align: right; padding: 2px 6px; border: 1px solid var(--border-strong);
+    border-radius: 4px; background: transparent; color: var(--text);
+    font-variant-numeric: tabular-nums; }
+  .result input.E-input:focus { outline: none; border-color: var(--accent); }
+  .sample-name-input {
+    font-size: 13px; font-weight: 600; border: none; background: transparent;
+    outline: none; color: var(--text); padding: 0; min-width: 80px; max-width: 280px;
+    font-family: inherit; border-bottom: 1px solid transparent;
+  }
+  .sample-name-input:hover { border-bottom-color: var(--border-strong); }
+  .sample-name-input:focus { border-bottom-color: var(--accent); }
+  .badge { font-size: 9px; padding: 1px 5px; border-radius: 3px;
+    background: var(--accent-soft); color: var(--accent); font-weight: 600;
+    letter-spacing: 0.05em; }
+
+  .log { background: #0b0b0d; color: #d4d4d8; border-radius: 6px;
+    padding: 8px 12px; font: 11.5px/1.55 "JetBrains Mono", "Consolas", ui-monospace, monospace;
+    height: 120px; overflow: auto; }
+  .log .ok { color: #4ade80; }
+  .log .warn { color: #fbbf24; }
+  .log .err { color: #f87171; }
+  .log .info { color: #93c5fd; }
+  .log .dim { color: #71717a; }
+
+  .statusbar { height: 24px; background: var(--panel);
+    border-top: 1px solid var(--border); display: flex; align-items: center;
+    padding: 0 12px; gap: 14px; font-size: 11px; color: var(--text-dim); }
+  .statusbar .dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; }
+  .statusbar .dot.busy { background: #fbbf24; animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: 0.4; } }
+  .statusbar .spacer { flex: 1; }
+
+  /* DARK theme */
+  .app-root[data-theme="dark"] {
+    --bg: #1e1e1e; --panel: #252526; --panel-2: #2a2a2b;
+    --border: #3a3a3d; --border-strong: #4a4a4d;
+    --text: #e6e6e6; --text-dim: #a1a1a1; --text-faint: #7a7a7a;
+    --accent: #ff8c42; --accent-soft: rgba(255,140,66,0.14);
+    --grid: #333335; --curve: #ff8c42; --curve-2: #4dd0e1;
+    --shadow: 0 1px 0 rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.3);
+  }
+  .app-root[data-theme="dark"] .titlebar .win-btn:hover { background: #3a3a3d; color: #fff; }
+  .app-root[data-theme="dark"] .input { background: #1c1c1c; color: var(--text); }
+  .app-root[data-theme="dark"] .btn { background: #2f2f30; color: var(--text); }
+  .app-root[data-theme="dark"] .radio { color: var(--text); }
+  .app-root[data-theme="dark"] .radio:hover { background: #2f2f30; }
+  .app-root[data-theme="dark"] .log { background: #141415; }
+  .app-root[data-theme="dark"] body { background: #111; }
+  .app-root[data-theme="dark"] .menubar .m { color: var(--text-dim); }
+  .app-root[data-theme="dark"] .tool { color: var(--text); }
+  .app-root[data-theme="dark"] .tool .lbl { color: var(--text-dim); }
+  .app-root[data-theme="dark"] .tool .ico { color: var(--text); }
+  .app-root[data-theme="dark"] .tool:hover:not([disabled]) .lbl { color: var(--accent); }
+  .app-root[data-theme="dark"] .data-modal-panel { color: var(--text); }
+  .app-root[data-theme="dark"] #dataTable td,
+  .app-root[data-theme="dark"] #dataTable th { color: var(--text); }
+  .app-root[data-theme="graphite"] { --accent: #18181b; --accent-soft: #f4f4f5; }
+  .app-root[data-theme="teal"] {
+    --accent: #0d9488; --accent-soft: #ccfbf1; --curve: #0d9488;
+  }
+  .data-modal {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.42); z-index: 1000;
+  }
+  .data-modal[data-open="true"] { display: flex; }
+  .data-modal-backdrop { position: absolute; inset: 0; }
+  .data-modal-panel {
+    position: relative; width: min(94vw, 940px); max-height: 86vh; overflow: hidden;
+    background: var(--panel); border-radius: 14px; box-shadow: 0 24px 80px rgba(0,0,0,0.24);
+  }
+  .data-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; border-bottom: 1px solid var(--border); background: var(--panel-2);
+  }
+  .data-modal-header div { font-weight: 700; }
+  .data-modal-close {
+    border: none; background: transparent; font-size: 22px; line-height: 1; cursor: pointer;
+    color: var(--text-dim); padding: 4px 8px;
+  }
+  .data-modal-body { padding: 14px 18px; overflow: auto; }
+  .data-modal-summary { margin-bottom: 12px; font-size: 12px; color: var(--text-dim); }
+  .data-modal-table-wrap { max-height: 60vh; overflow: auto; border: 1px solid var(--border-strong); border-radius: 8px; }
+  #dataTable { width: 100%; border-collapse: collapse; font-size: 12px; }
+  #dataTable th, #dataTable td { padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  #dataTable th { position: sticky; top: 0; background: var(--panel-2); z-index: 1; text-align: left; }
+  .autoe-table { width: 100%; border-collapse: collapse; }
+  .autoe-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); }
+  .autoe-table td:first-child { color: var(--text-dim); width: 55%; }
+  #autoEAccept:not([disabled]) { opacity: 1 !important; }
+  .app-root[data-theme="dark"] #autoEModal .data-modal-panel { color: var(--text); }
+  .sheet-pick-btn {
+    width: 100%; padding: 8px 12px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--panel); color: var(--text);
+    cursor: pointer; text-align: left; font: inherit; font-size: 13px;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .sheet-pick-btn:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .sheet-pick-btn.selected { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .sheet-pick-btn.skip-sheet { opacity: 0.45; }
+
+  @media print {
+    @page { size: A4 landscape; margin: 10mm; }
+
+    /* Force light-mode tokens — same selector specificity as the dark-theme block,
+       but this rule comes later in the cascade so it wins. */
+    .app-root[data-theme="dark"] {
+      --bg: #f7f7f8; --panel: #fff; --panel-2: #fafafa;
+      --border: #e4e4e7; --border-strong: #d4d4d8;
+      --text: #18181b; --text-dim: #71717a; --text-faint: #a1a1aa;
+      --accent: #2563eb; --accent-soft: #eff6ff;
+      --grid: #ececef; --curve: #2563eb; --curve-2: #f97316; --shadow: none;
+    }
+
+    html, body { background: #fff !important; }
+    .win, #appRoot {
+      width: 100% !important; height: auto !important; margin: 0 !important;
+      border: none !important; box-shadow: none !important;
+      border-radius: 0 !important; overflow: visible !important;
+      background: #fff !important;
+    }
+
+    /* Hide chrome — keep only center plot and right results */
+    .titlebar, .menubar, .toolbar, .statusbar, .col.left,
+    .log, .hint-bar, .axis-bar, .badge, #tweaks-root { display: none !important; }
+
+    /* Two-column body: plot | results */
+    .body {
+      display: flex !important; flex-direction: row !important;
+      align-items: stretch !important; height: 172mm !important;
+      min-height: 0 !important; overflow: visible !important;
+    }
+
+    /* Center: plot */
+    .col.center { flex: 1 !important; min-width: 0 !important; overflow: visible !important; }
+    .plot-wrap { flex: 1 !important; padding: 4px !important; height: 100% !important; }
+    .plot-card {
+      height: 100% !important; border: 1px solid #d4d4d8 !important;
+      box-shadow: none !important; border-radius: 4px !important;
+      background: #fff !important; display: flex !important; flex-direction: column !important;
+    }
+    .plot-header {
+      flex-shrink: 0 !important; padding: 6px 10px !important;
+      border-bottom: 1px solid #e4e4e7 !important; background: #fff !important;
+    }
+    .plot-header .pill, .plot-header .spacer { display: none !important; }
+    .sample-name-input {
+      color: #18181b !important; background: transparent !important;
+      border: none !important; font-weight: 600 !important; font-size: 13px !important;
+    }
+    #sampleMeta { color: #71717a !important; font-size: 11px !important; }
+    .plot-svg-wrap { flex: 1 !important; min-height: 0 !important; }
+    .plot-svg { width: 100% !important; height: 100% !important; display: block !important; }
+
+    /* Right column: results */
+    .col.right {
+      width: 172px !important; flex-shrink: 0 !important;
+      display: flex !important; flex-direction: column !important;
+      border-left: 1px solid #e4e4e7 !important;
+      background: #fff !important; overflow: visible !important; padding: 0 !important;
+    }
+    .col.right .panel {
+      background: #fff !important; padding: 10px 12px !important;
+      border-bottom: 1px solid #e4e4e7 !important;
+    }
+    .col.right .panel h3 {
+      font-size: 9px !important; margin-bottom: 8px !important; color: #a1a1aa !important;
+    }
+    .col.right .log { display: none !important; }
+    .results { gap: 6px !important; }
+    .result {
+      background: #fff !important; border: 1px solid #e4e4e7 !important;
+      padding: 7px 10px !important; border-radius: 4px !important;
+    }
+    .result .k { font-size: 9px !important; color: #71717a !important; }
+    .result .v { font-size: 15px !important; color: #18181b !important; }
+    .result .v .u { font-size: 10px !important; color: #71717a !important; }
+    .result .v-sub { font-size: 9px !important; color: #71717a !important; }
+    .result.orange .v { color: #f97316 !important; }
+    .result.purple .v { color: #8b5cf6 !important; }
+    .result.red    .v { color: #ef4444 !important; }
+    .results-sep { font-size: 8px !important; padding: 6px 0 2px !important; }
+    .result input.E-input {
+      font-size: 15px !important; color: #18181b !important;
+      border: none !important; background: transparent !important; width: 60px !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-root" id="appRoot" data-theme="dark" data-iconstyle="solid">
+  <div class="win">
+    <!-- Title bar -->
+    <div class="titlebar">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <img src="YieldFOX.png" alt="YieldFOX logo" style="height:30px;width:auto;object-fit:contain;display:block;" />
+        <div class="app-logo">YIELD<span>FOX</span></div>
+      </div>
+      <div class="title">YieldFOX — Tensile Test Analysis</div>
+      <div class="win-btns">
+        <div class="win-btn" title="Minimize"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 5 H9" stroke="currentColor" stroke-width="1"/></svg></div>
+        <div class="win-btn" title="Maximize"><svg width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" fill="none" stroke="currentColor" stroke-width="1"/></svg></div>
+        <div class="win-btn close" title="Close"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 1 L9 9 M9 1 L1 9" stroke="currentColor" stroke-width="1"/></svg></div>
+      </div>
+    </div>
+
+    <!-- Menubar -->
+    <div class="menubar">
+      <div class="m" id="menuFile">File
+        <div class="menu-drop">
+          <div class="mi" id="miOpen">Open File…<span class="mi-key">Ctrl+O</span></div>
+          <div class="mi mi-needs-data mi-disabled" id="miReload">Reload Data</div>
+          <div class="mi-sep"></div>
+          <div class="mi mi-needs-data mi-disabled" id="miShowData">Show Data Table</div>
+          <div class="mi-sep"></div>
+          <div class="mi mi-needs-data mi-disabled" id="miSavePng">Save PNG</div>
+          <div class="mi mi-needs-data mi-disabled" id="miExportPdf">Export PDF</div>
+          <div class="mi-sep"></div>
+          <div class="mi mi-needs-data mi-disabled" id="miClear">Clear Data</div>
+        </div>
+      </div>
+      <div class="m" id="menuEdit">Edit
+        <div class="menu-drop">
+          <div class="mi mi-needs-data mi-disabled" id="miResetResults">Reset Results</div>
+          <div class="mi-sep"></div>
+          <div class="mi" id="miLoadSettings">Load Last Settings</div>
+          <div class="mi" id="miSaveSettings">Save Settings</div>
+        </div>
+      </div>
+      <div class="m" id="menuView">View
+        <div class="menu-drop">
+          <div class="mi" id="miToggleTheme">Toggle Theme</div>
+          <div class="mi-sep"></div>
+          <div class="mi mi-needs-data mi-disabled" id="miZoomIn">Zoom In<span class="mi-key">+</span></div>
+          <div class="mi mi-needs-data mi-disabled" id="miZoomOut">Zoom Out<span class="mi-key">−</span></div>
+          <div class="mi mi-needs-data mi-disabled" id="miFit">Fit to Data<span class="mi-key">Dbl-click</span></div>
+          <div class="mi mi-needs-data mi-disabled" id="miZoomE">Zoom Elastic Region</div>
+          <div class="mi mi-needs-data mi-disabled" id="miBoxZoom">Box Zoom Mode</div>
+        </div>
+      </div>
+      <div class="m" id="menuAnalysis">Analysis
+        <div class="menu-drop">
+          <div class="mi mi-needs-data mi-disabled" id="miFindE">Find E (manual pick)…</div>
+          <div class="mi mi-needs-data mi-disabled" id="miAutoE">Auto E Detection…</div>
+          <div class="mi-sep"></div>
+          <div class="mi mi-needs-data mi-disabled" id="miYieldUTS">Compute Yield + UTS</div>
+          <div class="mi mi-needs-data mi-disabled" id="miReset2">Reset Results</div>
+        </div>
+      </div>
+      <div class="m" id="menuTools">Tools
+        <div class="menu-drop">
+          <div class="mi mi-needs-data mi-disabled" id="miShowData2">Show Data Table</div>
+        </div>
+      </div>
+      <div class="m" id="menuHelp">Help
+        <div class="menu-drop">
+          <div class="mi" id="miHelp">Open Help<span class="mi-key">F1</span></div>
+          <div class="mi-sep"></div>
+          <div class="mi" id="miAbout">About YieldFOX v1.0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <button class="tool" id="btnOpen">
+        <div class="ico" data-icon="open"></div><div class="lbl">Open</div>
+      </button>
+      <button class="tool" id="btnUpdate" data-needs-data>
+        <div class="ico" data-icon="update"></div><div class="lbl">Update</div>
+      </button>
+      <button class="tool" id="btnClear" data-needs-data>
+        <div class="ico" data-icon="clear"></div><div class="lbl">Clear</div>
+      </button>
+      <button class="tool" id="btnShowData" data-needs-data>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5 H20 V19 H4 Z"/><path d="M4 9 H20"/><path d="M8 13 H16"/></svg></div><div class="lbl">Show data</div>
+      </button>
+      <button class="tool" id="btnReload" data-needs-data>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7 V3 H8"/><path d="M4 3 L10 9"/><path d="M20 17 V21 H16"/><path d="M20 21 L14 15"/></svg></div><div class="lbl">Reload</div>
+      </button>
+      <button class="tool" id="btnTheme">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="5"/><path d="M12 1 V3"/><path d="M12 21 V23"/><path d="M4.22 4.22 L5.64 5.64"/><path d="M18.36 18.36 L19.78 19.78"/><path d="M1 12 H3"/><path d="M21 12 H23"/><path d="M4.22 19.78 L5.64 18.36"/><path d="M18.36 5.64 L19.78 4.22"/></svg></div><div class="lbl">Theme</div>
+      </button>
+      <div class="tool-sep"></div>
+
+      <button class="tool primary" id="btnEModule" data-needs-data title="Click 2 points on the plot to define the elastic region">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M3 20 L8 10 L13 14 L21 4"/><circle cx="8" cy="10" r="2" fill="currentColor"/><circle cx="13" cy="14" r="2" fill="currentColor"/></svg></div>
+        <div class="lbl">Find E</div>
+      </button>
+      <button class="tool" id="btnAutoE" data-needs-data title="Automatically detect elastic region and compute E">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div>
+        <div class="lbl">Auto E</div>
+      </button>
+      <button class="tool" id="btnYield" data-needs-data>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M3 18 C 6 18 9 6 14 6 L21 6"/><path d="M5 18 L5 4 M3 16 L21 16" stroke-width="1" opacity="0.5"/></svg></div>
+        <div class="lbl">Yield + UTS</div>
+      </button>
+      <button class="tool" id="btnReset" data-needs-data>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12 A8 8 0 1 0 6 6.5"/><path d="M4 4 V8 H8"/></svg></div>
+        <div class="lbl">Reset</div>
+      </button>
+      <button class="tool active" id="btnAdvanced" title="Toggle advanced analysis — ReH/ReL, Lüders band, PLC serrations, necking onset">
+        <div class="ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 3h6M9 3v8L3 21h18L15 11V3"/>
+            <circle cx="10" cy="16" r="1.2" fill="currentColor" stroke="none"/>
+            <circle cx="14" cy="14" r="1.2" fill="currentColor" stroke="none"/>
+            <path d="M9 18h2"/>
+          </svg>
+        </div>
+        <div class="lbl">Advanced</div>
+      </button>
+      <div class="tool-sep"></div>
+
+      <button class="tool" id="btnZoomIn" data-needs-data title="Zoom in (wheel up)">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="M8 11 H14 M11 8 V14"/><path d="M16 16 L21 21"/></svg></div>
+        <div class="lbl">Zoom +</div>
+      </button>
+      <button class="tool" id="btnZoomOut" data-needs-data title="Zoom out (wheel down)">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="M8 11 H14"/><path d="M16 16 L21 21"/></svg></div>
+        <div class="lbl">Zoom −</div>
+      </button>
+      <button class="tool" id="btnBoxZoom" data-needs-data title="Drag a rectangle to zoom (or hold Shift + drag)">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="12" height="12" stroke-dasharray="3 2"/><path d="M14 14 L21 21 M18 21 H21 V18"/></svg></div>
+        <div class="lbl">Box zoom</div>
+      </button>
+      <button class="tool" id="btnFit" data-needs-data title="Fit axes to data (double-click plot)">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 9 V3 H9 M21 9 V3 H15 M3 15 V21 H9 M21 15 V21 H15"/></svg></div>
+        <div class="lbl">Fit</div>
+      </button>
+      <button class="tool" id="btnZoomE" data-needs-data title="Zoom to elastic region (0–1 % strain)">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="M16 16 L21 21"/><path d="M8 14 L10 9 L13 12" stroke-linejoin="round"/></svg></div>
+        <div class="lbl">Zoom E</div>
+      </button>
+      <div class="tool-sep"></div>
+
+      <button class="tool" id="btnPdf" data-needs-data>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 3 H14 L18 7 V21 H6 Z"/><path d="M14 3 V7 H18"/><text x="12" y="17" text-anchor="middle" font-size="6" font-family="Segoe UI" font-weight="700" fill="currentColor" stroke="none">PDF</text></svg></div>
+        <div class="lbl">Export PDF</div>
+      </button>
+      <button class="tool" id="btnSavePng" data-needs-data>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="1"/><circle cx="9" cy="10" r="1.6" fill="currentColor"/><path d="M3 17 L9 12 L14 17 L17 14 L21 18"/></svg></div>
+        <div class="lbl">Save PNG</div>
+      </button>
+      <input type="file" id="fileInput" accept=".dat,.txt,.csv,.tsv,.xlsx,.xls" style="display:none"/>
+    </div>
+
+    <div id="dataModal" class="data-modal" aria-hidden="true">
+      <div class="data-modal-backdrop" id="dataModalClose"></div>
+      <div class="data-modal-panel">
+        <div class="data-modal-header">
+          <div>Parsed data</div>
+          <button class="data-modal-close" id="btnCloseData">×</button>
+        </div>
+        <div class="data-modal-body">
+          <div class="data-modal-summary" id="dataModalSummary"></div>
+          <div class="data-modal-table-wrap"><table id="dataTable"></table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Auto E Modal -->
+    <div id="autoEModal" class="data-modal" data-open="false">
+      <div class="data-modal-backdrop" id="autoEModalBackdrop"></div>
+      <div class="data-modal-panel" style="width:min(94vw,440px);max-height:80vh">
+        <div class="data-modal-header">
+          <div>Auto E Detection</div>
+          <button class="data-modal-close" id="autoEModalClose">×</button>
+        </div>
+        <div class="data-modal-body" style="display:flex;flex-direction:column;gap:14px">
+          <div style="font-size:12px;color:var(--text-dim)">
+            Scans the stress–strain curve to automatically find the best linear elastic region using dynamic sliding-window regression.
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <label style="font-size:13px;white-space:nowrap">Material</label>
+            <select class="input" id="autoEMaterial" style="flex:1">
+              <option value="auto">Auto-detect (any material)</option>
+              <optgroup label="Steel">
+                <option value="steel-carbon">Carbon Steel (190–215 GPa)</option>
+                <option value="steel-stainless">Stainless Steel (180–210 GPa)</option>
+              </optgroup>
+              <optgroup label="Aluminum">
+                <option value="al-wrought">Wrought Aluminum (65–75 GPa)</option>
+                <option value="al-cast">Cast Aluminum (60–80 GPa)</option>
+              </optgroup>
+              <optgroup label="Magnesium">
+                <option value="mg-alloy">Mg Alloy (40–50 GPa)</option>
+              </optgroup>
+              <optgroup label="Cast Iron">
+                <option value="ci-gray">Gray Cast Iron (80–140 GPa)</option>
+                <option value="ci-ductile">Ductile Iron (160–180 GPa)</option>
+                <option value="ci-cgi">Compact Graphite Iron (120–160 GPa)</option>
+              </optgroup>
+            </select>
+            <button class="btn-primary" id="autoERunBtn" style="white-space:nowrap;padding:6px 14px;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:13px">Analyse</button>
+          </div>
+          <div id="autoEResult" style="display:none;background:var(--panel-2);border-radius:8px;padding:12px;font-size:13px"></div>
+          <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:4px">
+            <button id="autoECancel" style="padding:7px 16px;border-radius:6px;border:1px solid var(--border-strong);background:transparent;color:var(--text);cursor:pointer;font-size:13px">Cancel</button>
+            <button id="autoEAccept" disabled style="padding:7px 16px;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;opacity:0.5">Accept &amp; Apply</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sheet Picker Modal -->
+    <div id="sheetPickerModal" class="data-modal" data-open="false">
+      <div class="data-modal-backdrop" id="sheetPickerBackdrop"></div>
+      <div class="data-modal-panel" style="width:min(94vw,360px);max-height:80vh">
+        <div class="data-modal-header">
+          <div>Select sheet</div>
+          <button class="data-modal-close" id="sheetPickerClose">×</button>
+        </div>
+        <div class="data-modal-body" style="display:flex;flex-direction:column;gap:12px">
+          <div style="font-size:12px;color:var(--text-dim)">This file has multiple sheets. Select which one to load.</div>
+          <div id="sheetPickerList" style="display:flex;flex-direction:column;gap:4px;max-height:52vh;overflow:auto"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;padding-top:4px">
+            <button id="sheetPickerCancel" style="padding:7px 16px;border-radius:6px;border:1px solid var(--border-strong);background:transparent;color:var(--text);cursor:pointer;font-size:13px">Cancel</button>
+            <button id="sheetPickerLoad" style="padding:7px 16px;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:13px">Load</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="body">
+
+      <!-- Left: Settings -->
+      <div class="col left">
+        <div class="panel">
+          <h3>Sample / Data</h3>
+          <div class="row" id="areaRow"><label>Area</label><input class="input" id="fArea" type="number" step="any" /><div class="unit">mm²</div></div>
+          <div class="row"><label>Starting line</label><input class="input" id="fStart" type="number" /><div class="unit"></div></div>
+          <div class="row"><label>Strain column</label><input class="input" id="fStrain" type="number" /><div class="unit"></div></div>
+          <div class="row"><label id="forceColLabel">Force column</label><input class="input" id="fForce" type="number" /><div class="unit"></div></div>
+          <div class="row"><label>Decimal sep.</label><select class="input" id="fDecimal" style="text-align:left;width:84px"><option value="auto">Auto</option><option value="dot">· dot</option><option value="comma">, comma</option></select><div class="unit"></div></div>
+          <div class="row"><label>Strain unit</label><select class="input" id="fStrainUnit" style="text-align:left;width:84px"><option value="percent">% percent</option><option value="mm/mm">mm/mm</option><option value="microstrain">µε micro</option></select><div class="unit"></div></div>
+          <div class="row"><label>Stress unit</label><select class="input" id="fInputType" style="text-align:left;width:84px"><option value="force">Force (N)</option><option value="stress">Stress (MPa)</option></select><div class="unit"></div></div>
+          <div class="row"><label>Curve type</label><select class="input" id="fCurveType" style="text-align:left;width:84px"><option value="engineering">Engineering</option><option value="true">→ True</option></select><div class="unit"></div></div>
+        </div>
+
+        <div class="panel">
+          <h3>Settings</h3>
+          <div class="btn-stack">
+            <button class="btn" id="btnLoadSettings"><span class="dot">⤓</span>Load last settings</button>
+            <button class="btn" id="btnSaveSettings"><span class="dot">⤒</span>Save settings</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Workflow</h3>
+          <div style="font-size:11px; color:var(--text-dim); line-height:1.6;">
+            1.&nbsp; <b>Open</b> a .dat / .txt / .csv / .xlsx file<br/>
+            2.&nbsp; Set <b>Strain unit</b>, <b>Input data</b>, <b>Curve type</b><br/>
+            3.&nbsp; Adjust Area &amp; columns — plot updates live<br/>
+            4.&nbsp; <b>Find E</b> → click 2 points on elastic region<br/>
+            5.&nbsp; <b>Yield + UTS</b> computed automatically<br/>
+            6.&nbsp; Edit sample name in the plot header<br/>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center: Plot -->
+      <div class="col center">
+        <div class="plot-wrap">
+          <div class="plot-card">
+            <div class="plot-header">
+              <input class="sample-name-input" id="sampleName" value="— no sample —" placeholder="Sample name" spellcheck="false" />
+              <div class="meta" id="sampleMeta"></div>
+              <div class="spacer"></div>
+              <div class="pill"><span class="swatch"></span>σ vs ε</div>
+            </div>
+
+            <div class="plot-svg-wrap">
+              <svg class="plot-svg" id="plot" xmlns="http://www.w3.org/2000/svg"></svg>
+              <div class="hint-bar" id="hintBar">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 L12 22 M2 12 L22 12"/></svg>
+                Click 2 points on the plot to define the elastic region
+              </div>
+            </div>
+
+            <div class="axis-bar">
+              <div class="group"><span class="axis-label">X</span> min <input class="input" id="axXmin" type="number" step="any"/> max <input class="input" id="axXmax" type="number" step="any"/></div>
+              <div class="group"><span class="axis-label">Y</span> min <input class="input" id="axYmin" type="number" step="any"/> max <input class="input" id="axYmax" type="number" step="any"/></div>
+              <div class="spacer"></div>
+              <div class="group" style="color:var(--text-faint)">Drag = pan  ·  Wheel = zoom  ·  Shift-drag = box-zoom  ·  Double-click = fit</div>
+              <img src="YieldFOX.png" alt="Norfox" style="height: 65px;width:auto;object-fit:contain;opacity:0.35;margin-left:auto;padding-right:4px;" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Results -->
+      <div class="col right">
+        <div class="panel">
+          <h3>Mechanical properties</h3>
+          <div class="results">
+            <div class="result editable">
+              <div class="k">Young's Modulus <span class="badge">EDIT</span></div>
+              <div class="v"><input class="E-input" id="rE" type="number" step="any" placeholder="—" /><span class="u">GPa</span></div>
+            </div>
+            <div class="result">
+              <div class="k" id="rYLabel">Yield (0.2 % offset)</div>
+              <div class="v"><span id="rY">—</span><span class="u">MPa</span></div>
+            </div>
+            <div class="result">
+              <div class="k">UTS</div>
+              <div class="v"><span id="rU">—</span><span class="u">MPa</span></div>
+            </div>
+            <div class="result">
+              <div class="k">Elongation at break</div>
+              <div class="v"><span id="rEl">—</span><span class="u">%</span></div>
+            </div>
+          </div>
+
+          <!-- Advanced analysis results (shown when detected) -->
+          <div id="advResults" style="display:none;">
+            <div class="results-sep">Advanced Analysis</div>
+            <div class="results" style="gap:7px;">
+
+              <!-- Discontinuous yield: ReH / ReL / drop / Lüders -->
+              <div id="resDiscontinuous" style="display:none;">
+                <div class="results" style="gap:7px;">
+                  <div class="result orange">
+                    <div class="k">ReH — Upper Yield</div>
+                    <div class="v"><span id="rReH">—</span><span class="u">MPa</span></div>
+                  </div>
+                  <div class="result">
+                    <div class="k">ReL — Lower Yield</div>
+                    <div class="v"><span id="rReL">—</span><span class="u">MPa</span></div>
+                  </div>
+                  <div class="result">
+                    <div class="k">Yield Drop ΔR</div>
+                    <div class="v"><span id="rYieldDrop">—</span><span class="u">MPa</span></div>
+                  </div>
+                  <div class="result">
+                    <div class="k">Lüders Strain</div>
+                    <div class="v"><span id="rLuders">—</span><span class="u">%</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- PLC serrations -->
+              <div class="result purple" id="resPLC" style="display:none;">
+                <div class="k">PLC Serrations</div>
+                <div class="v"><span id="rPLCCount">—</span></div>
+                <div class="v-sub" id="rPLCRange"></div>
+              </div>
+
+              <!-- Necking onset -->
+              <div class="result red" id="resNecking" style="display:none;">
+                <div class="k">Necking Onset (Considère)</div>
+                <div class="v"><span id="rNecking">—</span><span class="u">%</span></div>
+                <div class="v-sub">σ = <span id="rNeckingStress">—</span> MPa</div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Messages</h3>
+          <div class="log" id="logBox"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status bar -->
+    <div class="statusbar">
+      <div class="dot" id="statusDot"></div>
+      <div id="statusText">Ready</div>
+      <div>·</div>
+      <div id="rowCount">0 rows</div>
+      <div class="spacer"></div>
+      <div>Tensile · 0.2% offset · linear-fit E</div>
+      <div>·</div>
+      <div>v1.0 web</div>
+    </div>
+  </div>
+</div>
+
+<!-- SheetJS for Excel support -->
+<script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+<!-- App logic -->
+<script src="YieldFOX.js?v=5"></script>
+
+<!-- Icon injection + Tweaks -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+
+<div id="tweaks-root"></div>
+
+<script type="text/babel">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "iconStyle": "solid"
+}/*EDITMODE-END*/;
+
+const LINE_ICONS = {
+  open: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M3 7 H10 L12 9 H21 V19 H3 Z"/></svg>`,
+  update: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M20 12 A8 8 0 1 1 17 6.5"/><path d="M20 4 V8 H16"/></svg>`,
+  clear: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M5 7 H19"/><path d="M7 7 V20 H17 V7"/><path d="M9 7 V4 H15 V7"/><path d="M10 11 V17 M14 11 V17" opacity="0.6"/></svg>`,
+  close: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 8.5 L15.5 15.5 M15.5 8.5 L8.5 15.5"/></svg>`,
+};
+const PHOTO_ICONS = {
+  open: '<img src="assets/icons/open.png" alt="Open"/>',
+  update: '<img src="assets/icons/update.png" alt="Update"/>',
+  clear: '<img src="assets/icons/clear.png" alt="Clear"/>',
+  close: '<img src="assets/icons/close.jpg" alt="Close"/>',
+};
+const SOLID_ICONS = {
+  open: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 7 H10 L12 9 H21 V11 H3 Z M3 12 H21 V19 H3 Z"/></svg>`,
+  update: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4 V2 L7 5 L12 8 V6 A6 6 0 1 1 6 12 H4 A8 8 0 1 0 12 4 Z"/></svg>`,
+  clear: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 3 H15 V5 H20 V7 H4 V5 H9 Z M6 8 H18 L17 21 H7 Z"/></svg>`,
+  close: `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9"/><path d="M8.5 8.5 L15.5 15.5 M15.5 8.5 L8.5 15.5" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>`,
+};
+function applyIcons(style) {
+  const set = style === 'line' ? LINE_ICONS : style === 'solid' ? SOLID_ICONS : PHOTO_ICONS;
+  document.querySelectorAll('.tool .ico[data-icon]').forEach(el => {
+    el.innerHTML = set[el.dataset.icon] || '';
+  });
+}
+applyIcons(TWEAK_DEFAULTS.iconStyle);
+// Theme is managed exclusively by YieldFOX.js (Theme toolbar button + localStorage)
+
+const { TweaksPanel, TweakSection, TweakRadio, useTweaks } = window;
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  React.useEffect(() => { applyIcons(t.iconStyle); }, [t.iconStyle]);
+  return (
+    <TweaksPanel title="Tweaks">
+      <TweakSection label="Icon style">
+        <TweakRadio label="Icons" value={t.iconStyle}
+          options={['photo','line','solid']}
+          onChange={v => setTweak('iconStyle', v)} />
+      </TweakSection>
+    </TweaksPanel>
+  );
+}
+ReactDOM.createRoot(document.getElementById('tweaks-root')).render(<App />);
+</script>
+
+</body>
+</html>
